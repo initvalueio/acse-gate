@@ -4,7 +4,7 @@
   "releases": [
     {
       "release": "1.0.0",
-      "template_digest": "sha256:79a30155d488c38e1673d6b263a824f48c8f1a4da6eaa73932de46595b7611b8",
+      "template_digest": "sha256:6d724daf0a20f920538c670bb39ceaa4135f18dab296fe99b261fbe764fcecaa",
       "released_on": "2026-11-05",
       "state": "current"
     }

@@ -15,6 +15,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -72,9 +73,19 @@ def class_digest(directory: pathlib.Path, check_id: str) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+ACTION_LINE = re.compile(
+    rb"^([ \t]*(?:-[ \t]+)?uses:[ \t]+)[A-Za-z0-9_-]+/[A-Za-z0-9._-]+(/\.github/actions/acse-gate@)[^\s#]+", re.MULTILINE)
+
+
 def template_digest(root: pathlib.Path) -> str:
-    paths = [root / ".github/workflows/acse-gate.yml"] + [p for p in (root / ".github/actions/acse-gate").rglob("*") if p.is_file()]
-    files = sorted(({"path": p.relative_to(root).as_posix(), "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in paths),
+    """acse-gate-template-1: the workflow's one action line hashed in its placeholder form."""
+    workflow = root / ".github/workflows/acse-gate.yml"
+    paths = [workflow] + [p for p in (root / ".github/actions/acse-gate").rglob("*") if p.is_file()]
+
+    def data(p: pathlib.Path) -> bytes:
+        b = p.read_bytes()
+        return ACTION_LINE.sub(rb"\1__OWNER__/__REPOSITORY__\2__REF__", b) if p == workflow else b
+    files = sorted(({"path": p.relative_to(root).as_posix(), "sha256": hashlib.sha256(data(p)).hexdigest()} for p in paths),
                    key=lambda e: e["path"].encode())
     doc = {"format": "acse-gate-template-1", "files": files}
     return "sha256:" + hashlib.sha256(json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()).hexdigest()

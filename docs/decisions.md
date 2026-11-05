@@ -1,36 +1,27 @@
 # Decisions in the gate template
 
 These are the judgement calls the gate's design leaves to the template. For each one the table gives the default
-taken and what it would cost to change it. **D-1 must be settled before the gate can report.**
+taken and what it would cost to change it.
 
-## D-1 — the template's `uses:` line is per policy repository, so its digest is too (open, blocking reports)
+## D-1 — the template's `uses:` line names the policy repository (decided 2026-11-05: "Placeholder + strict check")
 
-The reusable workflow has to run the composite action from the **same** policy repository, because that is how the
-bundle arrives with no credential. GitHub accepts no expression in `uses:`, so the line has to name the repository
-literally: `uses: <owner>/<policy-repo>/.github/actions/acse-gate@<branch>`.
+The reusable workflow has to run the composite action from its **own** policy repository, because that is how the
+bundle arrives with no credential. GitHub accepts no expression in `uses:`, so the line names the repository and a ref
+literally. Every tenant's copy therefore differs in that one line.
 
-So every tenant's copy of `acse-gate.yml` differs in that one line. Under `acse-gate-template-1` as defined (a
-sha256 over the exact bytes), **every tenant's template digest is different**, and none of them equals the digest
-in `published-templates.json`. A verifier that requires "a digest in the published set" would therefore refuse every
-genuine report as `TEMPLATE_NOT_CURRENT`. The gate still gates (AC-G1), but no run would count as *seen*.
-
-What this repository does now:
-- `template/` carries the line in one fixed placeholder form:
-  `uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__`. It is the only line that differs between
-  tenants, and `tests/check_static.py` holds it to exactly one occurrence.
-- Release 1.0.0's published digest is computed over `template/` **with the placeholder**.
-- The gate reports the digest it computes over the files it actually ran, so it never claims a digest it cannot show.
-
-Options (not decided here):
-
-| | Option | Effect | Cost |
-|---|---|---|---|
-| a | **Amend `acse-gate-template-1`**: before hashing `.github/workflows/acse-gate.yml`, rewrite its single `uses: <owner>/<repo>/.github/actions/acse-gate@<ref>` line to the placeholder form. Still `sed` + `sha256sum` + `jq` | One digest per release for every tenant. **Release 1.0.0's digest stays valid**, because it is already computed over the placeholder form. The verifier's ACSE-side sync applies the same rewrite | A contract change (recipe, golden vectors, the sync and the verifier). The rewrite is on the line that decides *which* action runs, so the verifier must also check that the owner/repo in that line is the registered policy repository. That holds anyway once the sync reads it at `job_workflow_sha` |
-| b | Publish per-tenant digests | No recipe change | The published set becomes per tenant and no longer public-shaped. Against the published set's design |
-| c | Keep the exact-bytes digest and have the verifier compare against "the published template rendered for this tenant" | No recipe change | The control plane needs the tenant's owner/repo/branch to render, and the comparison stops being recomputable by anyone with `sha256sum` |
-
-Recommendation: **(a)**. It is the smallest change that keeps the published list public, the same for every tenant,
-and recomputable. It needs ACSE's contract owner to decide.
+**Decided: placeholder plus a strict check.**
+- `template/` carries the line as `uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__`. ACSE renders it
+  with the policy repository's owner/name and its branch when it writes the template.
+- `acse-gate-template-1` hashes that one line in the placeholder form and every other byte as it is, so every copy of
+  a release has the release's digest. The workflow must end with a line feed and hold exactly one such line, or the
+  template is invalid. This rule is used by `tools/template-digest.sh`, by `gate.sh` itself, and by ACSE's sync and
+  recipes.
+- **The strict check is ACSE's verifier's.** The real line must name the registered policy repository, the one
+  `job_workflow_ref` names, and the same ref as the signed `job_workflow_ref` (`R`, `refs/heads/R` or `refs/tags/R`).
+  A caller must therefore call `acse-gate.yml@<the branch the line names>`, not a commit SHA. Otherwise the reports
+  are refused; the gate itself still gates.
+- `fixtures/policy-repo` holds a rendered copy (`example-org/acse-policies@main`). The CI checks that its digest, and
+  the digest the gate reports, are the published one.
 
 ## Other defaults taken
 

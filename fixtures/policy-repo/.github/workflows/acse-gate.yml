@@ -82,7 +82,7 @@ jobs:
 
       - name: Gate
         id: gate
-        uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__
+        uses: example-org/acse-policies/.github/actions/acse-gate@main
         with:
           plan-json: ${{ runner.temp }}/acse-gate-input/${{ inputs.plan-file }}
           tfvars-json: ${{ inputs.tfvars-file != '' && format('{0}/acse-gate-input/{1}', runner.temp, inputs.tfvars-file) || '' }}

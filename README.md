@@ -108,14 +108,17 @@ artifact.
 ## The template, releases and digests
 
 - `template/.github/` is copied verbatim into a policy repository. The only exception is the one `uses:` line that
-  names the composite action: `__OWNER__/__REPOSITORY__` and `__REF__` become your policy repository and its branch,
-  because GitHub does not accept an expression in `uses:`.
+  runs the composite action: `__OWNER__/__REPOSITORY__` and `__REF__` become your policy repository and its branch,
+  because GitHub does not accept an expression in `uses:`. Call the gate at that same branch
+  (`.../acse-gate.yml@main`). ACSE checks that the line names your policy repository and the ref your workflow
+  called, and refuses reports otherwise.
 - `published-templates.json` lists every release, with its `acse-gate-template-1` digest and its state: `current`, or
   `withdrawn` with a reason. ACSE accepts reports only from a template whose digest is a release that has not been
   withdrawn. An edited copy still gates your pull requests, but its reports are refused.
 - `acse-gate-template-1` is sha256 over the canonical JSON `{format, files: [{path, sha256}]}` of
-  `.github/workflows/acse-gate.yml` and every file under `.github/actions/acse-gate/`, sorted by path. Recompute it
-  with `tools/template-digest.sh <repository root>` (needs `find`, `sort`, `sha256sum` and `jq`).
+  `.github/workflows/acse-gate.yml` and every file under `.github/actions/acse-gate/`, sorted by path. The workflow's
+  one action line is hashed in its placeholder form, so your rendered copy has the published digest. Recompute it with
+  `tools/template-digest.sh <repository root>` (needs `find`, `sort`, `grep`, `sed`, `sha256sum` and `jq`).
 - Each release is a tag `v<release>`. The release workflow publishes the template archive, its digest and the
   published list, each with a build-provenance attestation:
   `gh attestation verify acse-gate-template-<release>.tar.gz --repo initvalueio/acse-gate`.

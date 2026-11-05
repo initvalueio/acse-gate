@@ -48,6 +48,11 @@ def vectors() -> None:
             materialise(v["files"], pathlib.Path(tmp))
             got = run("sh", str(ROOT / "tools/template-digest.sh"), tmp)
             expect(got == v["template_digest"], f"template-digest vector {v['name']}: {got} != {v['template_digest']}")
+    for v in json.loads((ROOT / "tests/vectors/template-digest.json").read_text())["invalid_vectors"]:
+        with tempfile.TemporaryDirectory() as tmp:
+            materialise(v["files"], pathlib.Path(tmp))
+            refused = subprocess.run(["sh", str(ROOT / "tools/template-digest.sh"), tmp], capture_output=True).returncode
+            expect(refused == 2, f"template-digest invalid vector {v['name']}: not refused")
     for v in json.loads((ROOT / "tests/vectors/class-digest.json").read_text())["vectors"]:
         with tempfile.TemporaryDirectory() as tmp:
             materialise(v["files"], pathlib.Path(tmp))
@@ -78,7 +83,17 @@ def published() -> None:
 
 def copies() -> None:
     fixture = ROOT / "fixtures/policy-repo"
-    for rel in [".github/workflows/acse-gate.yml"] + sorted(
+    # The fixture policy repository holds the template as ACSE writes it: the action line rendered with a repository and
+    # its branch, every other byte the template's. Its digest must still be the published one (the placeholder rule).
+    placeholder = "uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__"
+    template_wf = (TEMPLATE / ".github/workflows/acse-gate.yml").read_text()
+    expect(template_wf.count(placeholder) == 1, "the template must reference its composite action exactly once, by placeholder")
+    tenant_wf = template_wf.replace(placeholder, "uses: example-org/acse-policies/.github/actions/acse-gate@main")
+    expect((fixture / ".github/workflows/acse-gate.yml").read_text() == tenant_wf,
+           "fixtures/policy-repo's acse-gate.yml is not the template rendered for example-org/acse-policies@main")
+    expect(run("sh", str(ROOT / "tools/template-digest.sh"), str(fixture)) == run("sh", str(ROOT / "tools/template-digest.sh"), str(TEMPLATE)),
+           "the rendered copy's digest is not the template's")
+    for rel in sorted(
             p.relative_to(TEMPLATE).as_posix() for p in (TEMPLATE / ".github/actions/acse-gate").rglob("*") if p.is_file()):
         a, b = TEMPLATE / rel, fixture / rel
         expect(b.is_file() and a.read_bytes() == b.read_bytes(), f"fixtures/policy-repo/{rel} is not the template's")
@@ -86,9 +101,6 @@ def copies() -> None:
         p.relative_to(TEMPLATE / ".github").as_posix() for p in (TEMPLATE / ".github").rglob("*") if p.is_file()}
     expect(not extra, f"fixtures/policy-repo/.github has files the template does not: {sorted(extra)}")
 
-    template_wf = (TEMPLATE / ".github/workflows/acse-gate.yml").read_text()
-    placeholder = "uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__"
-    expect(template_wf.count(placeholder) == 1, "the template must reference its composite action exactly once, by placeholder")
     rendered = template_wf.replace(placeholder, "uses: ./fixtures/policy-repo/.github/actions/acse-gate")
     fixture_wf = (ROOT / ".github/workflows/fixture-acse-gate.yml").read_text()
     expect(fixture_wf == rendered, ".github/workflows/fixture-acse-gate.yml is not the template's workflow, rendered")

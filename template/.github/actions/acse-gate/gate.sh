@@ -48,7 +48,10 @@ abspath() {
 # --- Digests (the reference recipes of acse-gate-template-1 and acse-class-digest-1) -----------------------------------
 
 # acse-gate-template-1 over a repository root: .github/workflows/acse-gate.yml and every file under
-# .github/actions/acse-gate/, sorted bytewise, {format, files: [{path, sha256}]}, canonical JSON, sha256.
+# .github/actions/acse-gate/, sorted bytewise, {format, files: [{path, sha256}]}, canonical JSON, sha256. The workflow's
+# one action line (uses: <owner>/<repo>/.github/actions/acse-gate@<ref>) is hashed in its placeholder form, so every
+# policy repository's copy of a release has the release's digest.
+ACTION_LINE='^([[:blank:]]*(-[[:blank:]]+)?uses:[[:blank:]]+)[A-Za-z0-9_-]+/[A-Za-z0-9._-]+(/\.github/actions/acse-gate@)[^[:space:]#]+'
 template_digest() {
   local root=$1
   (
@@ -56,8 +59,13 @@ template_digest() {
     local workflow=.github/workflows/acse-gate.yml action=.github/actions/acse-gate
     if [ -h "$workflow" ] || [ ! -f "$workflow" ] || [ -h "$action" ] || [ ! -d "$action" ]; then exit 2; fi
     if [ -n "$(find "$action" ! -type f ! -type d -print)" ]; then exit 2; fi
+    if [ "$(grep -cE "$ACTION_LINE" "$workflow" || true)" != 1 ] || [ -n "$(tail -c 1 "$workflow")" ]; then exit 2; fi
     { printf '%s\n' "$workflow"; find "$action" -type f -print; } | LC_ALL=C sort | while IFS= read -r path; do
-      printf '%s\t%s\n' "$path" "$(sha256sum -- "$path" | cut -d ' ' -f 1)"
+      if [ "$path" = "$workflow" ]; then
+        printf '%s\t%s\n' "$path" "$(sed -E "s|$ACTION_LINE|\\1__OWNER__/__REPOSITORY__\\3__REF__|" "$path" | sha256_hex)"
+      else
+        printf '%s\t%s\n' "$path" "$(sha256sum -- "$path" | cut -d ' ' -f 1)"
+      fi
     done | jq -R -n '{format: "acse-gate-template-1", files: [inputs | split("\t") | {path: .[0], sha256: .[1]}]}' \
       | jq -jcS . | sha256sum | cut -d ' ' -f 1 | sed 's/^/sha256:/'
   )
