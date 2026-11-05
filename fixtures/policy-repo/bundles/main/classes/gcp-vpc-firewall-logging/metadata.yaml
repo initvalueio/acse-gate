@@ -1,0 +1,53 @@
+# gcp-vpc-firewall-logging: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-vpc-firewall-logging
+version: 0.1.0
+title: Firewall rule has logging enabled
+severity: medium
+services:
+- compute
+resource_types:
+- network.firewall_rule
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: complete
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_firewall.rego
+  directive: directive.json
+crosswalk:
+- framework_id: pci-dss
+  control_id: 10.2.1
+  control_title: Audit logs are enabled and active
+- framework_id: fedramp-moderate
+  control_id: AU-2
+  control_title: Event Logging
+- framework_id: fedramp-moderate
+  control_id: AU-12
+  control_title: Audit Record Generation
+- framework_id: nist-800-53
+  control_id: AU-2
+  control_title: Event Logging
+- framework_id: nist-800-53
+  control_id: AU-12
+  control_title: Audit Record Generation
+- framework_id: cccs-medium
+  control_id: AU-2
+  control_title: Audit Events
+- framework_id: cccs-medium
+  control_id: AU-12
+  control_title: Audit Generation
+- framework_id: soc2
+  control_id: CC7.2
+  control_title: System components are monitored for anomalies
+- framework_id: iso-27001
+  control_id: '8.15'
+  control_title: Logging
+params_schema:
+  params: []
+authored_by: acse_pack

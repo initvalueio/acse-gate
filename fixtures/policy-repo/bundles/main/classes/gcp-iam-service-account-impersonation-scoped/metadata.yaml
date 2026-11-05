@@ -1,0 +1,25 @@
+# gcp-iam-service-account-impersonation-scoped: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-iam-service-account-impersonation-scoped
+version: 0.1.0
+title: Only named principals can act as the service account
+severity: medium
+services:
+- iam
+resource_types:
+- iam.service_account
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: partial
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_service_account_iam.rego
+crosswalk: []
+params_schema:
+  params: []
+authored_by: acse_pack

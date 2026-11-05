@@ -1,0 +1,59 @@
+{
+  "bundle_id": "gcp-compute-block-project-ssh-keys",
+  "bundle_version": "0.1.0",
+  "rule_id": "block-project-ssh-keys",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-compute-block-project-ssh-keys",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_compute_instance",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "metadata"
+        ],
+        "key": "block-project-ssh-keys",
+        "value": "TRUE"
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "project_ssh_keys_blocked",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud compute instances add-metadata",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          },
+          "--metadata",
+          {
+            "change": 0,
+            "format": "block-project-ssh-keys={value}"
+          }
+        ]
+      ]
+    }
+  }
+}

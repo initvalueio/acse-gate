@@ -1,0 +1,47 @@
+{
+  "bundle_id": "gcp-storage-uniform-access",
+  "bundle_version": "0.1.0",
+  "rule_id": "uniform-access",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-storage-uniform-access",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_storage_bucket",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "uniform_bucket_level_access"
+        ],
+        "value": true
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "uniform_access_enabled",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud storage buckets update",
+          {
+            "group": "bucket",
+            "prefix": "gs://"
+          },
+          "--uniform-bucket-level-access"
+        ]
+      ]
+    }
+  }
+}

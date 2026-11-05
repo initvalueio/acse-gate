@@ -1,0 +1,46 @@
+# gcp-compute-no-public-ip: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-compute-no-public-ip
+version: 0.1.0
+title: VM instance has no external IP address
+severity: medium
+services:
+- compute
+resource_types:
+- compute.instance
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: complete
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_instance.rego
+crosswalk:
+- framework_id: pci-dss
+  control_id: 1.4.4
+  control_title: Components storing cardholder data are not reachable from untrusted networks
+- framework_id: cis-gcp-foundations
+  control_id: '4.9'
+  control_title: Instances have no public IP addresses
+- framework_id: fedramp-moderate
+  control_id: SC-7
+  control_title: Boundary Protection
+- framework_id: nist-800-53
+  control_id: SC-7
+  control_title: Boundary Protection
+- framework_id: cccs-medium
+  control_id: SC-7
+  control_title: Boundary Protection
+- framework_id: soc2
+  control_id: CC6.6
+  control_title: Threats from outside system boundaries
+- framework_id: iso-27001
+  control_id: '8.20'
+  control_title: Networks security
+params_schema:
+  params: []
+authored_by: acse_pack

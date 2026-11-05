@@ -1,0 +1,149 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.14.8",
+  "variables": {
+    "project": {
+      "value": "acme-prod-data"
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "google_storage_bucket.logs",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "logs",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "acme-gate-logs",
+          "location": "EU",
+          "project": "acme-prod-data",
+          "force_destroy": false,
+          "public_access_prevention": "enforced",
+          "versioning": [
+            {
+              "enabled": true
+            }
+          ],
+          "logging": [
+            {
+              "log_bucket": "acme-audit-logs",
+              "log_object_prefix": null
+            }
+          ],
+          "retention_policy": [
+            {
+              "retention_period": 86400,
+              "is_locked": false
+            }
+          ],
+          "labels": null,
+          "uniform_bucket_level_access": true
+        },
+        "after_unknown": {
+          "id": true,
+          "self_link": true,
+          "url": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      }
+    },
+    {
+      "address": "module.storage.google_storage_bucket.data",
+      "mode": "managed",
+      "type": "google_storage_bucket",
+      "name": "data",
+      "provider_name": "registry.terraform.io/hashicorp/google",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "name": "acme-gate-data",
+          "location": "EU",
+          "project": "acme-prod-data",
+          "force_destroy": false,
+          "public_access_prevention": "enforced",
+          "versioning": [
+            {
+              "enabled": true
+            }
+          ],
+          "logging": [
+            {
+              "log_bucket": "acme-audit-logs",
+              "log_object_prefix": null
+            }
+          ],
+          "retention_policy": [
+            {
+              "retention_period": 86400,
+              "is_locked": false
+            }
+          ],
+          "labels": null,
+          "uniform_bucket_level_access": true
+        },
+        "after_unknown": {
+          "id": true,
+          "self_link": true,
+          "url": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {}
+      },
+      "module_address": "module.storage"
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "google": {
+        "name": "google",
+        "full_name": "registry.terraform.io/hashicorp/google",
+        "expressions": {
+          "project": {
+            "references": [
+              "var.project"
+            ]
+          }
+        }
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "google_storage_bucket.logs",
+          "mode": "managed",
+          "type": "google_storage_bucket",
+          "name": "logs",
+          "provider_config_key": "google"
+        }
+      ],
+      "module_calls": {
+        "storage": {
+          "source": "./modules/storage",
+          "module": {
+            "resources": [
+              {
+                "address": "google_storage_bucket.data",
+                "mode": "managed",
+                "type": "google_storage_bucket",
+                "name": "data",
+                "provider_config_key": "google"
+              }
+            ]
+          }
+        }
+      },
+      "variables": {
+        "project": {}
+      }
+    }
+  }
+}
