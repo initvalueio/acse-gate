@@ -1,0 +1,90 @@
+{
+  "bundle_id": "gcp-compute-secure-boot",
+  "bundle_version": "0.1.0",
+  "rule_id": "secure-boot",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-compute-secure-boot",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_compute_instance",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "shielded_instance_config",
+          "enable_secure_boot"
+        ],
+        "value": true,
+        "create_missing_blocks": true
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "secure_boot_enabled",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud compute instances stop",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          }
+        ],
+        [
+          "gcloud compute instances update",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          },
+          {
+            "change": 0,
+            "values": {
+              "true": "--shielded-secure-boot",
+              "false": "--no-shielded-secure-boot"
+            }
+          }
+        ],
+        [
+          "gcloud compute instances start",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          }
+        ]
+      ]
+    }
+  }
+}

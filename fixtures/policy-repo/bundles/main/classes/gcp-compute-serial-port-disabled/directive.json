@@ -1,0 +1,59 @@
+{
+  "bundle_id": "gcp-compute-serial-port-disabled",
+  "bundle_version": "0.1.0",
+  "rule_id": "serial-port-disabled",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-compute-serial-port-disabled",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_compute_instance",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "metadata"
+        ],
+        "key": "serial-port-enable",
+        "value": "FALSE"
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "serial_port_enabled",
+          "value": false
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud compute instances add-metadata",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          },
+          "--metadata",
+          {
+            "change": 0,
+            "format": "serial-port-enable={value}"
+          }
+        ]
+      ]
+    }
+  }
+}

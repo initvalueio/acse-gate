@@ -1,0 +1,7 @@
+{
+  "gate_bundle_version": "1.0",
+  "default_mode": "observe",
+  "classes": [
+    {"check_id": "gcp-storage-uniform-access", "mode": "enforce"}
+  ]
+}

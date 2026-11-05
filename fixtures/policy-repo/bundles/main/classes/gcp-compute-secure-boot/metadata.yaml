@@ -1,0 +1,53 @@
+# gcp-compute-secure-boot: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-compute-secure-boot
+version: 0.1.0
+title: VM instance has Secure Boot enabled
+severity: medium
+services:
+- compute
+resource_types:
+- compute.instance
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: partial
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_instance.rego
+  directive: directive.json
+crosswalk:
+- framework_id: pci-dss
+  control_id: 2.2.1
+  control_title: Configuration standards are developed and maintained
+- framework_id: fedramp-moderate
+  control_id: CM-6
+  control_title: Configuration Settings
+- framework_id: nist-800-53
+  control_id: CM-6
+  control_title: Configuration Settings
+- framework_id: cccs-medium
+  control_id: CM-6
+  control_title: Configuration Settings
+- framework_id: soc2
+  control_id: CC6.8
+  control_title: Unauthorized or malicious software is prevented or detected
+- framework_id: iso-27001
+  control_id: '8.9'
+  control_title: Configuration management
+- framework_id: fedramp-moderate
+  control_id: SI-7
+  control_title: Software, Firmware, and Information Integrity
+- framework_id: nist-800-53
+  control_id: SI-7
+  control_title: Software, Firmware, and Information Integrity
+- framework_id: cccs-medium
+  control_id: SI-7
+  control_title: Software, Firmware, and Information Integrity
+params_schema:
+  params: []
+authored_by: acse_pack
