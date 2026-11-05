@@ -1,0 +1,92 @@
+# ACSE gate: the thin reusable workflow your IaC repositories call.
+#
+#   jobs:
+#     acse-gate:
+#       needs: plan                      # the job that uploaded the plan as an artifact
+#       permissions:
+#         contents: read
+#         id-token: write                # the verdict-only report (no secret)
+#         pull-requests: write           # optional: suggested changes as review comments
+#       uses: <org>/<policy-repo>/.github/workflows/acse-gate.yml@main
+#       with:
+#         plan-artifact: acse-gate-plan
+#         working-directory: infra
+#         audience: acse-gate:<registration>
+#         tenant-id: <tenant>
+#         report-url: https://<your ACSE address>/api/gate/v1/reports
+#
+# It needs no credential. GitHub fetches this workflow, the composite action and the policy bundle beside them through
+# this repository's "Accessible from repositories in the organization" Actions setting. Strictness lives in the
+# bundle (bundles/<name>/bundle.json), never here. Part of the gate template (acse-gate-template-1): an edited copy
+# still gates, but ACSE refuses its reports.
+name: acse-gate
+
+on:
+  workflow_call:
+    inputs:
+      plan-artifact:
+        description: Name of the artifact, uploaded earlier in this run, that holds the plan JSON.
+        type: string
+        default: acse-gate-plan
+      plan-file:
+        description: The plan JSON's path inside the artifact (terraform show -json of the plan).
+        type: string
+        default: plan.json
+      tfvars-file:
+        description: Optional variables JSON's path inside the artifact.
+        type: string
+        default: ""
+      working-directory:
+        description: The Terraform root the plan was made in, relative to the repository root.
+        type: string
+        default: "."
+      audience:
+        description: The OIDC audience of the repository's registration in ACSE. Empty sends no report.
+        type: string
+        default: ""
+      tenant-id:
+        description: Your ACSE tenant id. Empty sends no report.
+        type: string
+        default: ""
+      report-url:
+        description: The ACSE report endpoint (https). Empty sends no report.
+        type: string
+        default: ""
+      runs-on:
+        description: The runner label (linux, x64).
+        type: string
+        default: ubuntu-latest
+    outputs:
+      verdict:
+        description: pass, fail or error.
+        value: ${{ jobs.gate.outputs.verdict }}
+
+jobs:
+  gate:
+    name: ACSE gate
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 15
+    outputs:
+      verdict: ${{ steps.gate.outputs.verdict }}
+    steps:
+      - name: Check out the code under review
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the plan
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.plan-artifact }}
+          path: ${{ runner.temp }}/acse-gate-input
+
+      - name: Gate
+        id: gate
+        uses: __OWNER__/__REPOSITORY__/.github/actions/acse-gate@__REF__
+        with:
+          plan-json: ${{ runner.temp }}/acse-gate-input/${{ inputs.plan-file }}
+          tfvars-json: ${{ inputs.tfvars-file != '' && format('{0}/acse-gate-input/{1}', runner.temp, inputs.tfvars-file) || '' }}
+          working-directory: ${{ inputs.working-directory }}
+          audience: ${{ inputs.audience }}
+          tenant-id: ${{ inputs.tenant-id }}
+          report-url: ${{ inputs.report-url }}
