@@ -1,0 +1,49 @@
+{
+  "format": "acse-gate-template-1",
+  "vectors": [
+    {
+      "name": "published-template",
+      "files": [
+        {
+          "path": ".github/actions/acse-gate/action.yml",
+          "content": "name: acse-gate\ndescription: Evaluate a plan against the policy bundle and report the verdict.\ninputs:\n  plan-json:\n    required: true\nruns:\n  using: composite\n  steps:\n    - shell: sh\n      run: \"$GITHUB_ACTION_PATH/scripts/gate.sh\"\n"
+        },
+        {
+          "path": ".github/actions/acse-gate/opa_capabilities.json",
+          "content": "{\n  \"builtins\": [],\n  \"allow_net\": []\n}\n"
+        },
+        {
+          "path": ".github/actions/acse-gate/scripts/gate.sh",
+          "content": "#!/bin/sh\nset -eu\n# synthetic template script\necho gate\n"
+        },
+        {
+          "path": ".github/workflows/acse-gate.yml",
+          "content": "name: acse-gate\non:\n  workflow_call:\n    inputs:\n      plan-json:\n        type: string\n        required: true\npermissions:\n  contents: read\n  id-token: write\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: acme/acse-policies/.github/actions/acse-gate@main\n        with:\n          plan-json: ${{ inputs.plan-json }}\n"
+        }
+      ],
+      "template_digest": "sha256:f273be5ce66aabd3b9ae3bd27705b2b98ce394566b09db5a242e01f388818d28"
+    },
+    {
+      "name": "edited-template",
+      "files": [
+        {
+          "path": ".github/actions/acse-gate/action.yml",
+          "content": "name: acse-gate\ndescription: Evaluate a plan against the policy bundle and report the verdict.\ninputs:\n  plan-json:\n    required: true\nruns:\n  using: composite\n  steps:\n    - shell: sh\n      run: \"$GITHUB_ACTION_PATH/scripts/gate.sh\"\n"
+        },
+        {
+          "path": ".github/actions/acse-gate/opa_capabilities.json",
+          "content": "{\n  \"builtins\": [],\n  \"allow_net\": []\n}\n"
+        },
+        {
+          "path": ".github/actions/acse-gate/scripts/gate.sh",
+          "content": "#!/bin/sh\nset -eu\n# synthetic template script\necho gate; exit 0\n"
+        },
+        {
+          "path": ".github/workflows/acse-gate.yml",
+          "content": "name: acse-gate\non:\n  workflow_call:\n    inputs:\n      plan-json:\n        type: string\n        required: true\npermissions:\n  contents: read\n  id-token: write\njobs:\n  gate:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: acme/acse-policies/.github/actions/acse-gate@main\n        with:\n          plan-json: ${{ inputs.plan-json }}\n"
+        }
+      ],
+      "template_digest": "sha256:2aa45c400503b4c56fbeb437cf9f5ae26b8e807e34f51407f4d4d121916f84d3"
+    }
+  ]
+}

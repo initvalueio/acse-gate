@@ -1,0 +1,97 @@
+{
+  "algorithm": "acse-class-digest-1",
+  "vectors": [
+    {
+      "name": "pack-class-with-directive",
+      "check_id": "gcp-storage-public-access-prevention",
+      "files": [
+        {
+          "path": "directive.json",
+          "content": "{\n  \"directive_id\": \"gcp-storage-public-access-prevention\",\n  \"directive_version\": \"1.0\",\n  \"terraform\": {\n    \"bound_resource_type\": \"google_storage_bucket\",\n    \"target\": {\n      \"kind\": \"bound\"\n    },\n    \"changes\": [\n      {\n        \"op\": \"set\",\n        \"path\": [\n          \"public_access_prevention\"\n        ],\n        \"value\": \"enforced\"\n      }\n    ]\n  }\n}\n"
+        },
+        {
+          "path": "metadata.yaml",
+          "content": "metadata_version: \"1.1\"\nid: gcp-storage-public-access-prevention\nversion: 1.0.0\ntitle: Cloud Storage buckets enforce public access prevention\nseverity: high\nservices: [storage]\nresource_types: [storage.googleapis.com/Bucket]\ncapabilities: {detect: true, gate: true, enforce: false}\ngate:\n  establishes: complete\n  normalisers:\n    - {input_kind: terraform_plan, file: google_storage_bucket.rego}\n  directive: directive.json\ncrosswalk:\n  - {framework_id: cis-gcp-2.0, control_id: \"5.2\", control_title: Ensure that Cloud Storage buckets have public access prevention enforced}\nauthored_by: acse_pack\n"
+        },
+        {
+          "path": "normalisers/terraform_plan/google_storage_bucket.rego",
+          "content": "package acse.classes.gcp_storage_public_access_prevention.normalise.terraform_plan\n\nimport rego.v1\n\nfacts(change) := {\"public_access_prevention_enforced\": change.after.public_access_prevention == \"enforced\"} if {\n\tchange.type == \"google_storage_bucket\"\n}\n"
+        },
+        {
+          "path": "policy.rego",
+          "content": "package acse.classes.gcp_storage_public_access_prevention\n\nimport rego.v1\n\nresult := \"fail\" if input.facts.public_access_prevention_enforced == false\n\nresult := \"pass\" if input.facts.public_access_prevention_enforced == true\n"
+        }
+      ],
+      "class_digest": "sha256:320d786878315e39c97f039d81ad91a20f27bc72ced52f25ff0ddf534737e59b"
+    },
+    {
+      "name": "studio-class-with-params",
+      "check_id": "cust-bucket-retention",
+      "files": [
+        {
+          "path": "metadata.yaml",
+          "content": "metadata_version: \"1.1\"\nid: cust-bucket-retention\nversion: 2.1.0\ntitle: Buckets keep objects for the minimum retention\nseverity: medium\nservices: [storage]\nresource_types: [storage.googleapis.com/Bucket]\ncapabilities: {detect: true, gate: true, enforce: false}\ngate:\n  establishes: partial\n  normalisers:\n    - {input_kind: terraform_plan, file: Bucket.rego}\n    - {input_kind: terraform_plan, file: bucket_policy.rego}\nparams_schema:\n  params:\n    - {name: minimum_days, kind: integer, required: true, minimum: 1, tightens: raise}\n    - {name: allowed_regions, kind: region_list, required: false}\nauthored_by: customer_studio\n"
+        },
+        {
+          "path": "normalisers/terraform_plan/Bucket.rego",
+          "content": "package acse.classes.cust_bucket_retention.normalise.terraform_plan.bucket\n"
+        },
+        {
+          "path": "normalisers/terraform_plan/bucket_policy.rego",
+          "content": "package acse.classes.cust_bucket_retention.normalise.terraform_plan.policy\n"
+        },
+        {
+          "path": "params.json",
+          "content": "{\"allowed_regions\":[\"europe-west1\",\"europe-west4\"],\"minimum_days\":30}"
+        },
+        {
+          "path": "policy.rego",
+          "content": "package acse.classes.cust_bucket_retention\n\nimport rego.v1\n\nresult := \"fail\" if input.facts.retention_days < data.params.minimum_days\n"
+        }
+      ],
+      "class_digest": "sha256:50d4560997328b2c7dd833117fae2821d85cd42d742d47837958d8fe20594858"
+    },
+    {
+      "name": "one-byte-differs",
+      "check_id": "gcp-storage-public-access-prevention",
+      "files": [
+        {
+          "path": "directive.json",
+          "content": "{\n  \"directive_id\": \"gcp-storage-public-access-prevention\",\n  \"directive_version\": \"1.0\",\n  \"terraform\": {\n    \"bound_resource_type\": \"google_storage_bucket\",\n    \"target\": {\n      \"kind\": \"bound\"\n    },\n    \"changes\": [\n      {\n        \"op\": \"set\",\n        \"path\": [\n          \"public_access_prevention\"\n        ],\n        \"value\": \"enforced\"\n      }\n    ]\n  }\n}\n"
+        },
+        {
+          "path": "metadata.yaml",
+          "content": "metadata_version: \"1.1\"\nid: gcp-storage-public-access-prevention\nversion: 1.0.0\ntitle: Cloud Storage buckets enforce public access prevention\nseverity: high\nservices: [storage]\nresource_types: [storage.googleapis.com/Bucket]\ncapabilities: {detect: true, gate: true, enforce: false}\ngate:\n  establishes: complete\n  normalisers:\n    - {input_kind: terraform_plan, file: google_storage_bucket.rego}\n  directive: directive.json\ncrosswalk:\n  - {framework_id: cis-gcp-2.0, control_id: \"5.2\", control_title: Ensure that Cloud Storage buckets have public access prevention enforced}\nauthored_by: acse_pack"
+        },
+        {
+          "path": "normalisers/terraform_plan/google_storage_bucket.rego",
+          "content": "package acse.classes.gcp_storage_public_access_prevention.normalise.terraform_plan\n\nimport rego.v1\n\nfacts(change) := {\"public_access_prevention_enforced\": change.after.public_access_prevention == \"enforced\"} if {\n\tchange.type == \"google_storage_bucket\"\n}\n"
+        },
+        {
+          "path": "policy.rego",
+          "content": "package acse.classes.gcp_storage_public_access_prevention\n\nimport rego.v1\n\nresult := \"fail\" if input.facts.public_access_prevention_enforced == false\n\nresult := \"pass\" if input.facts.public_access_prevention_enforced == true\n"
+        }
+      ],
+      "class_digest": "sha256:6aeffe006a01571f0267d516364c9f76879ace5bb161e4586aad1a7bcfde8cda"
+    },
+    {
+      "name": "params-declared-none-set",
+      "check_id": "cust-bucket-retention-defaults",
+      "files": [
+        {
+          "path": "metadata.yaml",
+          "content": "metadata_version: \"1.1\"\nid: cust-bucket-retention-defaults\nversion: 1.0.0\ntitle: Buckets keep objects for the minimum retention (defaults)\nseverity: medium\nservices: [storage]\nresource_types: [storage.googleapis.com/Bucket]\ncapabilities: {detect: true, gate: true, enforce: false}\ngate:\n  establishes: partial\n  normalisers:\n    - {input_kind: terraform_plan, file: bucket.rego}\nparams_schema:\n  params:\n    - {name: minimum_days, kind: integer, required: false}\n    - {name: allowed_regions, kind: region_list, required: false}\nauthored_by: customer_studio\n"
+        },
+        {
+          "path": "normalisers/terraform_plan/bucket.rego",
+          "content": "package acse.classes.cust_bucket_retention_defaults.normalise.terraform_plan\n"
+        },
+        {
+          "path": "policy.rego",
+          "content": "package acse.classes.cust_bucket_retention_defaults\n\nimport rego.v1\n\nresult := \"pass\" if not data.params.minimum_days\n"
+        }
+      ],
+      "class_digest": "sha256:0061fa18db86f177262e243063a711c6fbc9d1aad225e03648b7a590875f4e30"
+    }
+  ]
+}

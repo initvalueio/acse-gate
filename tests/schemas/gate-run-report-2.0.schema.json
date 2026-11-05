@@ -1,0 +1,577 @@
+{
+  "$comment": "Derived from ACSE's contract gate-run-report-2.0 (descriptions removed); validation only.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gate-run-report-2.0.schema.json",
+  "title": "ACSE Gate Run Report 2.0",
+  "type": "object",
+  "required": [
+    "gate_report_format_version",
+    "tenant_id",
+    "report_id",
+    "sent_at",
+    "keep_names_in_cloud",
+    "oidc",
+    "run",
+    "job",
+    "step",
+    "gate",
+    "bundle",
+    "verdict",
+    "address_hashing"
+  ],
+  "properties": {
+    "gate_report_format_version": {
+      "const": "2.0"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "report_id": {
+      "type": "string",
+      "pattern": "^grr-[0-9a-f]{32}$"
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "keep_names_in_cloud": {
+      "type": "boolean"
+    },
+    "oidc": {
+      "$ref": "#/$defs/gateOidcClaims"
+    },
+    "run": {
+      "$ref": "#/$defs/gateRun"
+    },
+    "job": {
+      "$ref": "#/$defs/gateJob"
+    },
+    "step": {
+      "$ref": "#/$defs/gateStep"
+    },
+    "gate": {
+      "$ref": "#/$defs/gateReference"
+    },
+    "bundle": {
+      "$ref": "#/$defs/gateBundle"
+    },
+    "verdict": {
+      "$ref": "#/$defs/gateVerdict"
+    },
+    "error_code": {
+      "$ref": "#/$defs/gateErrorCode"
+    },
+    "address_hashing": {
+      "$ref": "#/$defs/gateAddressHashing"
+    },
+    "classes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/gateClassRow"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "error"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "error_code"
+        ],
+        "not": {
+          "required": [
+            "classes"
+          ]
+        }
+      },
+      "else": {
+        "required": [
+          "classes"
+        ],
+        "not": {
+          "required": [
+            "error_code"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "const": "fail"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "classes": {
+            "contains": {
+              "$ref": "#/$defs/enforcedFailure"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "classes": {
+            "not": {
+              "contains": {
+                "$ref": "#/$defs/enforcedFailure"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "address_hashing"
+        ],
+        "properties": {
+          "address_hashing": {
+            "const": "off"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "classes": {
+            "items": {
+              "not": {
+                "required": [
+                  "failed_address_hashes"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "keep_names_in_cloud"
+        ],
+        "properties": {
+          "keep_names_in_cloud": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "oidc": {
+            "required": [
+              "repository_key"
+            ],
+            "not": {
+              "required": [
+                "repository_id"
+              ]
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "oidc": {
+            "required": [
+              "repository_id"
+            ],
+            "not": {
+              "required": [
+                "repository_key"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256Digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "gitCommit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "oidcIssuer": {
+      "enum": [
+        "https://token.actions.githubusercontent.com"
+      ]
+    },
+    "gateOidcClaims": {
+      "type": "object",
+      "required": [
+        "issuer",
+        "audience",
+        "workflow_ref_digest",
+        "gate_workflow_ref_digest",
+        "gate_repository_key",
+        "gate_workflow_commit",
+        "run_id",
+        "run_attempt",
+        "token_id_digest",
+        "issued_at",
+        "expires_at"
+      ],
+      "properties": {
+        "issuer": {
+          "$ref": "#/$defs/oidcIssuer"
+        },
+        "audience": {
+          "type": "string",
+          "pattern": "^acse-gate:[A-Za-z0-9._-]{1,128}$"
+        },
+        "repository_id": {
+          "type": "string",
+          "pattern": "^[0-9]{1,20}$"
+        },
+        "repository_key": {
+          "type": "string",
+          "pattern": "^rp-[0-9a-f]{64}$"
+        },
+        "workflow_ref_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "gate_workflow_ref_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "gate_repository_key": {
+          "type": "string",
+          "pattern": "^rp-[0-9a-f]{64}$"
+        },
+        "gate_workflow_commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "run_id": {
+          "type": "string",
+          "pattern": "^[0-9]{1,20}$"
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "token_id_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "issued_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateTrigger": {
+      "enum": [
+        "change_request",
+        "push",
+        "schedule",
+        "manual",
+        "other"
+      ]
+    },
+    "gateRun": {
+      "type": "object",
+      "required": [
+        "trigger",
+        "commit",
+        "started_at",
+        "finished_at"
+      ],
+      "properties": {
+        "trigger": {
+          "$ref": "#/$defs/gateTrigger"
+        },
+        "commit": {
+          "$ref": "#/$defs/gitCommit"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateJob": {
+      "type": "object",
+      "required": [
+        "check_run_id"
+      ],
+      "properties": {
+        "check_run_id": {
+          "type": "string",
+          "pattern": "^[0-9]{1,20}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateInputKind": {
+      "enum": [
+        "terraform_plan",
+        "cdk_synth",
+        "cloudformation_template",
+        "pulumi_preview",
+        "kubernetes_yaml"
+      ]
+    },
+    "gateStep": {
+      "type": "object",
+      "required": [
+        "input_kind"
+      ],
+      "properties": {
+        "input_kind": {
+          "$ref": "#/$defs/gateInputKind"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateReference": {
+      "type": "object",
+      "required": [
+        "template_release",
+        "template_digest",
+        "evaluator",
+        "evaluator_version"
+      ],
+      "properties": {
+        "template_release": {
+          "type": "string",
+          "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+        },
+        "template_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "evaluator": {
+          "const": "opa"
+        },
+        "evaluator_version": {
+          "type": "string",
+          "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "gateBundle": {
+      "type": "object",
+      "required": [
+        "tree_id",
+        "object_format"
+      ],
+      "properties": {
+        "tree_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "object_format": {
+          "enum": [
+            "sha1",
+            "sha256"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "object_format"
+            ],
+            "properties": {
+              "object_format": {
+                "const": "sha1"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "tree_id": {
+                "pattern": "^[0-9a-f]{40}$"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "tree_id": {
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "gateVerdict": {
+      "enum": [
+        "pass",
+        "fail",
+        "error"
+      ]
+    },
+    "gateErrorCode": {
+      "enum": [
+        "INPUT_UNREADABLE",
+        "BUNDLE_UNAVAILABLE",
+        "BUNDLE_INVALID",
+        "NORMALISE_FAILED",
+        "EVALUATION_FAILED"
+      ]
+    },
+    "gateAddressHashing": {
+      "enum": [
+        "off",
+        "salted"
+      ]
+    },
+    "gateMode": {
+      "enum": [
+        "observe",
+        "enforce"
+      ]
+    },
+    "gateCounts": {
+      "type": "object",
+      "required": [
+        "evaluated",
+        "passed",
+        "failed",
+        "unknown"
+      ],
+      "properties": {
+        "evaluated": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unknown": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "addressHash": {
+      "type": "string",
+      "pattern": "^ah-[0-9a-f]{64}$"
+    },
+    "gateClassRow": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "mode",
+        "class_digest",
+        "counts"
+      ],
+      "properties": {
+        "check_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,127}$"
+        },
+        "mode": {
+          "$ref": "#/$defs/gateMode"
+        },
+        "class_digest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "counts": {
+          "$ref": "#/$defs/gateCounts"
+        },
+        "failed_address_hashes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/addressHash"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "counts"
+            ],
+            "properties": {
+              "counts": {
+                "properties": {
+                  "failed": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "failed_address_hashes"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "enforcedFailure": {
+      "type": "object",
+      "required": [
+        "mode",
+        "counts"
+      ],
+      "properties": {
+        "mode": {
+          "const": "enforce"
+        },
+        "counts": {
+          "type": "object",
+          "required": [
+            "failed"
+          ],
+          "properties": {
+            "failed": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

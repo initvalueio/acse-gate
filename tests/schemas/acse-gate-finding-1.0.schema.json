@@ -1,0 +1,348 @@
+{
+  "$comment": "Derived from ACSE's contract acse-gate-finding-1.0 (descriptions removed); validation only.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "acse-gate-finding-1.0.schema.json",
+  "title": "ACSE Gate Finding 1.0",
+  "type": "object",
+  "required": [
+    "gate_finding_version",
+    "input_kind",
+    "classes",
+    "findings"
+  ],
+  "properties": {
+    "gate_finding_version": {
+      "const": "1.0"
+    },
+    "input_kind": {
+      "$ref": "#/$defs/inputKind"
+    },
+    "classes": {
+      "type": "array",
+      "maxItems": 2000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/evaluatedClass"
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 100000,
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "inputKind": {
+      "enum": [
+        "terraform_plan",
+        "cdk_synth",
+        "cloudformation_template",
+        "pulumi_preview",
+        "kubernetes_yaml"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "observe",
+        "enforce"
+      ]
+    },
+    "checkId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,127}$"
+    },
+    "evaluatedClass": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "mode"
+      ],
+      "properties": {
+        "check_id": {
+          "$ref": "#/$defs/checkId"
+        },
+        "mode": {
+          "$ref": "#/$defs/mode"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "enum": [
+        "pass",
+        "fail",
+        "unknown"
+      ]
+    },
+    "unknownReason": {
+      "enum": [
+        "value_known_after_apply",
+        "resource_outside_input",
+        "fact_not_in_input"
+      ]
+    },
+    "control": {
+      "type": "object",
+      "required": [
+        "framework_id",
+        "control_id"
+      ],
+      "properties": {
+        "framework_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,63}$"
+        },
+        "control_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.()-]{0,63}$"
+        },
+        "control_title": {
+          "type": "string",
+          "pattern": "^[ -~]{1,200}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "string",
+          "maxLength": 1024
+        },
+        {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        }
+      ]
+    },
+    "change": {
+      "type": "object",
+      "required": [
+        "op",
+        "path",
+        "value"
+      ],
+      "properties": {
+        "op": {
+          "const": "set"
+        },
+        "path": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$"
+          }
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "value": {
+          "$ref": "#/$defs/value"
+        }
+      },
+      "additionalProperties": false
+    },
+    "suggestion": {
+      "type": "object",
+      "required": [
+        "target",
+        "changes",
+        "complete"
+      ],
+      "properties": {
+        "target": {
+          "enum": [
+            "this_resource",
+            "new_resource"
+          ]
+        },
+        "resource_type": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+        },
+        "changes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/change"
+          }
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "target": {
+                "const": "new_resource"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "resource_type"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "resource_type"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "required": [
+        "check_id",
+        "outcome",
+        "mode",
+        "address",
+        "resource_type",
+        "controls"
+      ],
+      "properties": {
+        "check_id": {
+          "$ref": "#/$defs/checkId"
+        },
+        "outcome": {
+          "$ref": "#/$defs/outcome"
+        },
+        "mode": {
+          "$ref": "#/$defs/mode"
+        },
+        "address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "resource_type": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$"
+        },
+        "controls": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/control"
+          }
+        },
+        "unknown_reason": {
+          "$ref": "#/$defs/unknownReason"
+        },
+        "suggestion": {
+          "$ref": "#/$defs/suggestion"
+        },
+        "no_suggestion": {
+          "enum": [
+            "no_directive"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "const": "unknown"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "unknown_reason"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "unknown_reason"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "outcome"
+            ],
+            "properties": {
+              "outcome": {
+                "const": "fail"
+              }
+            }
+          },
+          "then": {
+            "oneOf": [
+              {
+                "required": [
+                  "suggestion"
+                ]
+              },
+              {
+                "required": [
+                  "no_suggestion"
+                ]
+              }
+            ]
+          },
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "suggestion"
+                  ]
+                },
+                {
+                  "required": [
+                    "no_suggestion"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
