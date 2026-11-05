@@ -1,0 +1,139 @@
+# acse-gate
+
+The ACSE CI gate template. It checks a Terraform plan against your own policy bundle before the change merges. It
+uses plain, pinned [OPA](https://www.openpolicyagent.org/) and nothing else, and it needs no credential.
+
+This repository is the **source** of the template and the **list of published releases**. It never runs the gate
+itself. ACSE copies the template into your policy repository by pull request, and your infrastructure repositories
+call it from there.
+
+## What runs, and where
+
+```
+your IaC repository                         your policy repository (acse-policies)
+───────────────────                         ──────────────────────────────────────
+job: plan                                   .github/workflows/acse-gate.yml      ← the thin reusable workflow
+  terraform plan -out tfplan                .github/actions/acse-gate/           ← the composite action it runs
+  terraform show -json tfplan > plan.json   bundles/current                      ← names the bundle directory
+  upload-artifact acse-gate-plan            bundles/<name>/bundle.json           ← observe / enforce, per class and label
+job: acse-gate                              bundles/<name>/gate/, classes/<id>/  ← the Rego, the same that detect runs
+  uses: <org>/acse-policies/.github/workflows/acse-gate.yml@main
+```
+
+GitHub fetches the workflow, the action and the bundle together, through the policy repository's
+**Actions → General → Access → "Accessible from repositories in the organization"** setting. You turn this on once.
+No token, deploy key or App is involved.
+
+The gate job:
+
+1. checks out the code under review and downloads the plan the `plan` job uploaded;
+2. installs `opa` 1.20.1, verified by its sha256 (or uses `opa-path` if your runner already has that build);
+3. evaluates `data.acse.gate.finding` over the plan, with the bundle as data:
+   ```
+   opa eval --format json --capabilities opa_capabilities.json --input plan.json \
+     --data acse_bundle.control:bundles/<name>/bundle.json \
+     --data acse_bundle.classes:bundles/<name>/classes \
+     --data bundles/<name>/gate [--data acse_bundle.tfvars:tfvars.json] 'data.acse.gate.finding'
+   ```
+4. finds each failing resource's file and line from the plan's `configuration` (its module calls) and `grep`;
+5. annotates the pull request with the rule, the controls it maps to, and the suggested change where the class has
+   one. If your job grants `pull-requests: write`, the suggestion is also posted as a one-click review suggestion;
+6. reports the **verdict only** to ACSE with the job's OIDC token: per class, counts, modes and digests. No plan,
+   addresses, values, file names or code are sent;
+7. fails the job **only** when a class in `enforce` mode fails.
+
+| Outcome | Annotation | Fails the job |
+|---|---|---|
+| fail, `enforce` | error | yes |
+| fail, `observe` | warning | no |
+| unknown (a value known only after apply, or a resource outside the plan) | notice | never |
+| ACSE unreachable, or the report refused | warning | never: the verdict stands |
+| the gate could not evaluate (no plan, a broken bundle) | error | yes, unless the bundle enforces nothing |
+
+Strictness lives in `bundle.json`, set from ACSE's Policy Studio. Moving a class from observe to enforce changes the
+bundle, never a workflow file.
+
+## Calling it from an IaC repository
+
+The plan is made in your own job and handed over as an artifact of the same workflow run. It stays inside your
+workflow run and never leaves your runners.
+
+```yaml
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v3
+      - run: |
+          terraform -chdir=infra init
+          terraform -chdir=infra plan -out=tfplan
+          terraform -chdir=infra show -json tfplan > plan.json
+      - uses: actions/upload-artifact@v7
+        with: { name: acse-gate-plan, path: plan.json, retention-days: 1 }
+
+  acse-gate:
+    needs: plan
+    permissions:
+      contents: read
+      id-token: write          # the verdict-only report; omit to run without reporting
+      pull-requests: write     # optional: one-click suggested changes
+    uses: <org>/acse-policies/.github/workflows/acse-gate.yml@main
+    with:
+      plan-artifact: acse-gate-plan
+      working-directory: infra
+      audience: acse-gate:<registration id>   # from ACSE Setup › Access › CI gate
+      tenant-id: <tenant id>
+      report-url: https://<your ACSE address>/api/gate/v1/reports
+```
+
+| Input | Default | Meaning |
+|---|---|---|
+| `plan-artifact` | `acse-gate-plan` | Artifact (uploaded earlier in the run) holding the plan JSON |
+| `plan-file` | `plan.json` | The plan's path inside the artifact |
+| `tfvars-file` | — | Optional variables JSON inside the artifact (only used to name a resource's project) |
+| `working-directory` | `.` | The Terraform root the plan was made in, for file and line |
+| `audience`, `tenant-id`, `report-url` | — | Where the verdict goes. Leave them empty to gate without reporting |
+| `runs-on` | `ubuntu-latest` | A Linux x64 runner with `bash`, `jq`, `curl`, `git` and `sha256sum` |
+
+The workflow's `verdict` output is `pass`, `fail` or `error`. For several Terraform roots, upload one plan per root
+under its own artifact name and call the gate once per root.
+
+**Why an artifact.** A reusable workflow runs as its own job, so the plan has to cross from your job to the gate's.
+An artifact of the same run carries any size of plan. It needs no permission and no secret, and it is deleted with the
+run (`retention-days: 1`). A workflow input string has a size limit, and a cache is shared across runs. A plan can
+contain sensitive values, so keep the retention short. Anyone who can read the repository's Actions can download an
+artifact.
+
+## The template, releases and digests
+
+- `template/.github/` is copied verbatim into a policy repository. The only exception is the one `uses:` line that
+  names the composite action: `__OWNER__/__REPOSITORY__` and `__REF__` become your policy repository and its branch,
+  because GitHub does not accept an expression in `uses:`.
+- `published-templates.json` lists every release, with its `acse-gate-template-1` digest and its state: `current`, or
+  `withdrawn` with a reason. ACSE accepts reports only from a template whose digest is a release that has not been
+  withdrawn. An edited copy still gates your pull requests, but its reports are refused.
+- `acse-gate-template-1` is sha256 over the canonical JSON `{format, files: [{path, sha256}]}` of
+  `.github/workflows/acse-gate.yml` and every file under `.github/actions/acse-gate/`, sorted by path. Recompute it
+  with `tools/template-digest.sh <repository root>` (needs `find`, `sort`, `sha256sum` and `jq`).
+- Each release is a tag `v<release>`. The release workflow publishes the template archive, its digest and the
+  published list, each with a build-provenance attestation:
+  `gh attestation verify acse-gate-template-<release>.tar.gz --repo initvalueio/acse-gate`.
+
+## Tests
+
+`.github/workflows/ci.yml` runs the template end to end against a test policy repository (`fixtures/policy-repo`, the
+template plus a GCP bundle) and fixture plans (`fixtures/plans`, `fixtures/iac`). It checks:
+
+- pass, enforce-fail, observe-fail and unknown, each with the expected outcome;
+- the report: valid `gate-run-report-2.0`, no addresses, the published template digest, and git's tree id for the bundle;
+- ACSE unreachable, or refusing the report: the job's outcome is still the verdict;
+- retries reuse the same `report_id`;
+- applying the suggested change makes the gate pass;
+- switching a class to enforce in `bundle.json` changes the outcome with no workflow change;
+- salted address hashes;
+- the reusable workflow called as a customer calls it.
+
+## Licence
+
+Apache-2.0.
