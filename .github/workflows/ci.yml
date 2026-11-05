@@ -1,0 +1,237 @@
+# Fixture CI: runs the gate template end to end against a test policy repository (fixtures/policy-repo, the template
+# plus a GCP bundle) and fixture plans, and checks the acceptance criteria:
+#   AC-G1  the report endpoint unreachable (or refusing): the verdict and the job's outcome are still right
+#   AC-G3  the annotation names the rule, the control, the file and line; applying its suggestion makes the gate pass
+#   AC-G4  a mode changed in bundle.json changes the outcome, with no change to any workflow file
+# The template in template/ is never run from this repository except through these fixtures.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REPORT_URL: http://127.0.0.1:8787/api/gate/v1/reports
+  UNREACHABLE_URL: https://127.0.0.1:9/api/gate/v1/reports
+
+jobs:
+  static:
+    name: Static checks (digests, published set, copies, pins)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+      - name: shellcheck
+        run: shellcheck -x template/.github/actions/acse-gate/gate.sh tools/*.sh tests/*.sh
+      - name: Digests, the published set, the fixture copies and the pins
+        run: python tests/check_static.py
+
+  scenarios:
+    name: Gate · ${{ matrix.scenario }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write        # the report's OIDC token, as in a customer's job
+      pull-requests: write   # suggestions as review comments (only where matrix.post is set)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { scenario: pass, case: pass, receiver: accept }
+          - { scenario: enforce-fail, case: enforce-fail, receiver: accept, post: true }
+          - { scenario: observe-fail, case: observe-fail, receiver: accept, post: true }
+          - { scenario: unknown, case: unknown, receiver: accept }
+          - { scenario: unreachable-fail, case: enforce-fail, receiver: none, unreachable: true }
+          - { scenario: unreachable-pass, case: pass, receiver: none, unreachable: true }
+          - { scenario: withdrawn, case: pass, receiver: withdrawn }
+          - { scenario: not-current, case: enforce-fail, receiver: not-current }
+          - { scenario: flaky, case: observe-fail, receiver: flaky }
+          - { scenario: duplicate, case: observe-fail, receiver: duplicate }
+          - { scenario: mode-switch, case: observe-fail, receiver: accept, variant: versioning-enforce }
+          - { scenario: salted, case: enforce-fail, receiver: accept, variant: salted }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --disable-pip-version-check jsonschema==4.23.0
+
+      - name: Start the stand-in receiver (${{ matrix.receiver }})
+        if: matrix.receiver != 'none'
+        run: |
+          nohup python tests/mock_receiver.py --mode "${{ matrix.receiver }}" --port 8787 \
+            --log "$RUNNER_TEMP/receiver.jsonl" >"$RUNNER_TEMP/receiver.out" 2>&1 &
+          for _ in $(seq 1 50); do curl -fsS http://127.0.0.1:8787/ready >/dev/null 2>&1 && exit 0; sleep 0.2; done
+          cat "$RUNNER_TEMP/receiver.out"; exit 1
+
+      - name: Prepare the variant policy repository (${{ matrix.variant }})
+        if: matrix.variant != ''
+        run: tests/make_variant.sh "${{ matrix.variant }}" _variant
+
+      - name: Gate (the fixture policy repository)
+        id: run1
+        if: matrix.variant != 'salted'
+        continue-on-error: true
+        uses: ./fixtures/policy-repo/.github/actions/acse-gate
+        with:
+          plan-json: fixtures/plans/${{ matrix.case }}.json
+          tfvars-json: fixtures/plans/tfvars.json
+          working-directory: fixtures/iac/${{ matrix.case }}
+          audience: acse-gate:fixture
+          tenant-id: fixture-tenant
+          report-url: ${{ matrix.unreachable && env.UNREACHABLE_URL || env.REPORT_URL }}
+          github-token: ${{ matrix.post && github.token || '' }}
+
+      - name: Gate (the salted variant)
+        id: run1v
+        if: matrix.variant == 'salted'
+        continue-on-error: true
+        uses: ./_variant/.github/actions/acse-gate
+        with:
+          plan-json: fixtures/plans/${{ matrix.case }}.json
+          tfvars-json: fixtures/plans/tfvars.json
+          working-directory: fixtures/iac/${{ matrix.case }}
+          audience: acse-gate:fixture
+          tenant-id: fixture-tenant
+          report-url: ${{ env.REPORT_URL }}
+          github-token: ""
+
+      - name: Keep the first run's results
+        run: |
+          cp -R "$RUNNER_TEMP/acse-gate" "$RUNNER_TEMP/run1"
+          if [ -f "$RUNNER_TEMP/receiver.jsonl" ]; then mv "$RUNNER_TEMP/receiver.jsonl" "$RUNNER_TEMP/receiver-run1.jsonl"; fi
+
+      - name: AC-G3 · apply the suggested change
+        if: matrix.scenario == 'enforce-fail'
+        run: python tests/apply_suggestion.py "$RUNNER_TEMP/run1" fixtures/plans/enforce-fail.json "$RUNNER_TEMP/fixed-plan.json" .
+
+      - name: Gate (after the suggestion)
+        id: run2fix
+        if: matrix.scenario == 'enforce-fail'
+        continue-on-error: true
+        uses: ./fixtures/policy-repo/.github/actions/acse-gate
+        with:
+          plan-json: ${{ runner.temp }}/fixed-plan.json
+          tfvars-json: fixtures/plans/tfvars.json
+          working-directory: fixtures/iac/enforce-fail
+          audience: acse-gate:fixture
+          tenant-id: fixture-tenant
+          report-url: ${{ env.REPORT_URL }}
+          github-token: ""
+
+      - name: Gate (AC-G4 · versioning switched to enforce in bundle.json)
+        id: run2mode
+        if: matrix.scenario == 'mode-switch'
+        continue-on-error: true
+        uses: ./_variant/.github/actions/acse-gate
+        with:
+          plan-json: fixtures/plans/${{ matrix.case }}.json
+          tfvars-json: fixtures/plans/tfvars.json
+          working-directory: fixtures/iac/${{ matrix.case }}
+          audience: acse-gate:fixture
+          tenant-id: fixture-tenant
+          report-url: ${{ env.REPORT_URL }}
+          github-token: ""
+
+      - name: Keep the second run's results
+        if: matrix.scenario == 'enforce-fail' || matrix.scenario == 'mode-switch'
+        run: cp -R "$RUNNER_TEMP/acse-gate" "$RUNNER_TEMP/run2"
+
+      - name: Assert
+        env:
+          OUTCOME1: ${{ matrix.variant == 'salted' && steps.run1v.outcome || steps.run1.outcome }}
+          OUTCOME2: ${{ matrix.scenario == 'enforce-fail' && steps.run2fix.outcome || steps.run2mode.outcome }}
+          POSTING: ${{ matrix.post && github.event_name || '' }}
+        run: |
+          args=(--scenario "${{ matrix.scenario }}" --run1 "$RUNNER_TEMP/run1" --outcome1 "$OUTCOME1"
+                --receiver-log "$RUNNER_TEMP/receiver-run1.jsonl" --posting "$POSTING")
+          if [ -d "$RUNNER_TEMP/run2" ]; then args+=(--run2 "$RUNNER_TEMP/run2" --outcome2 "$OUTCOME2"); fi
+          if [ -d _variant ]; then args+=(--variant-root _variant); fi
+          python tests/assert_scenario.py "${args[@]}"
+
+  plans:
+    name: Upload the fixture plans (as a customer's plan job would)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: |
+          for c in pass observe-fail unknown; do
+            mkdir -p "out/$c"
+            cp "fixtures/plans/$c.json" "out/$c/plan.json"
+            cp fixtures/plans/tfvars.json "out/$c/tfvars.json"
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: acse-gate-plan-pass, path: out/pass/, retention-days: 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: acse-gate-plan-observe-fail, path: out/observe-fail/, retention-days: 1 }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with: { name: acse-gate-plan-unknown, path: out/unknown/, retention-days: 1 }
+
+  # The reusable workflow itself, called as a customer's IaC workflow calls it, with ACSE unreachable (AC-G1) and the
+  # job's token unable to write review comments (suggestions fall back to annotation text).
+  reusable-pass:
+    needs: plans
+    permissions: { contents: read, id-token: write, pull-requests: read }
+    uses: ./.github/workflows/fixture-acse-gate.yml
+    with:
+      plan-artifact: acse-gate-plan-pass
+      tfvars-file: tfvars.json
+      working-directory: fixtures/iac/pass
+      audience: acse-gate:fixture
+      tenant-id: fixture-tenant
+      report-url: https://127.0.0.1:9/api/gate/v1/reports
+
+  reusable-observe-fail:
+    needs: plans
+    permissions: { contents: read, id-token: write, pull-requests: read }
+    uses: ./.github/workflows/fixture-acse-gate.yml
+    with:
+      plan-artifact: acse-gate-plan-observe-fail
+      tfvars-file: tfvars.json
+      working-directory: fixtures/iac/observe-fail
+      audience: acse-gate:fixture
+      tenant-id: fixture-tenant
+      report-url: https://127.0.0.1:9/api/gate/v1/reports
+
+  reusable-unknown:
+    needs: plans
+    permissions: { contents: read, id-token: write, pull-requests: read }
+    uses: ./.github/workflows/fixture-acse-gate.yml
+    with:
+      plan-artifact: acse-gate-plan-unknown
+      tfvars-file: tfvars.json
+      working-directory: fixtures/iac/unknown
+
+  reusable-verdicts:
+    name: Reusable workflow verdicts
+    needs: [reusable-pass, reusable-observe-fail, reusable-unknown]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          PASS: ${{ needs.reusable-pass.outputs.verdict }}
+          OBSERVE: ${{ needs.reusable-observe-fail.outputs.verdict }}
+          UNKNOWN: ${{ needs.reusable-unknown.outputs.verdict }}
+        run: |
+          echo "pass=$PASS observe-fail=$OBSERVE unknown=$UNKNOWN"
+          test "$PASS" = pass && test "$OBSERVE" = pass && test "$UNKNOWN" = pass

@@ -1,0 +1,70 @@
+# Release: a tag v<release> publishes the gate template as a GitHub release with build-provenance attestations.
+#
+# The tag must name the newest release in published-templates.json, in state current, whose template_digest is the
+# acse-gate-template-1 digest of template/ at the tagged commit, and gate.sh must name the same release. The release
+# carries the template as an archive, its digest, and the published set, each attested (actions/attest-build-provenance),
+# so anyone can check where a template came from with `gh attestation verify`.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write       # the GitHub release
+      id-token: write       # the attestation's signing identity
+      attestations: write   # the attestation itself
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the tag against the published set
+        id: check
+        run: |
+          release="${GITHUB_REF_NAME#v}"
+          digest=$(sh tools/template-digest.sh template)
+          listed=$(jq -r --arg r "$release" '.releases[] | select(.release == $r and .state == "current") | .template_digest' published-templates.json)
+          newest=$(jq -r '[.releases[].release] | sort_by(split(".") | map(tonumber)) | last' published-templates.json)
+          named=$(sed -n 's/^TEMPLATE_RELEASE="\(.*\)"$/\1/p' template/.github/actions/acse-gate/gate.sh)
+          echo "release $release, template digest $digest, listed ${listed:-none}, newest $newest, gate.sh $named"
+          test "$listed" = "$digest"
+          test "$newest" = "$release"
+          test "$named" = "$release"
+          echo "release=$release" >>"$GITHUB_OUTPUT"
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+
+      - name: Build the release files
+        env:
+          RELEASE: ${{ steps.check.outputs.release }}
+          DIGEST: ${{ steps.check.outputs.digest }}
+        run: |
+          mkdir dist
+          tar --sort=name --mtime='1970-01-01 00:00:00Z' --owner=0 --group=0 --numeric-owner \
+            -C template -cf - .github | gzip -n >"dist/acse-gate-template-${RELEASE}.tar.gz"
+          printf '%s\n' "$DIGEST" >"dist/acse-gate-template-${RELEASE}.digest"
+          cp published-templates.json dist/published-templates.json
+          (cd dist && sha256sum -- * >SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ steps.check.outputs.release }}
+          DIGEST: ${{ steps.check.outputs.digest }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "Gate template $RELEASE" \
+            --notes "Gate template $RELEASE. acse-gate-template-1 digest: \`$DIGEST\`. Copy template/.github into your policy repository (ACSE does this for you by pull request). Verify with: gh attestation verify acse-gate-template-$RELEASE.tar.gz --repo $GITHUB_REPOSITORY"
