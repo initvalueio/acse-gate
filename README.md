@@ -143,9 +143,11 @@ file is outside the template, so it is outside the template digest.
   `tools/template-digest.sh <repository root>` (needs `find`, `sort`, `grep`, `sed`, `sha256sum` and `jq`).
 - **ACSE never writes the workflow file.** GitHub refuses App pushes under `.github/workflows/`, and ACSE's App does
   not hold the `workflows` permission. ACSE's pull request writes `.github/actions/acse-gate/` only. When a release
-  changes `.github/workflows/acse-gate.yml`, ACSE shows the new file, its sha256 and the reason (the table below) as
-  "gate workflow update available": informational, never amber. Add it to ACSE's pull request branch before you merge
-  that pull request, so the two land together: until both have, the template's digest is not a published release.
+  changes `.github/workflows/acse-gate.yml`, ACSE's Prevent board shows "gate workflow <version> available" with the
+  new file, its digest and the reason (the table below): informational, never amber. You apply it by your own pull
+  request. A release that changes both files is published action first, so a repository with the new action and the
+  old workflow is still on a published release (cio-acse-design ADR-0073 Amendment 8, W-3). 1.1.0 is the exception:
+  no repository runs 1.0.0 in the field, so its two files are applied together, in one pull request (W-4).
 - Each release is a tag `v<release>`. The release workflow publishes the template archive, its digest and the
   published list, each with a build-provenance attestation:
   `gh attestation verify acse-gate-template-<release>.tar.gz --repo initvalueio/acse-gate`.
