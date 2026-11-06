@@ -1,0 +1,47 @@
+# gcp-storage-public-access-prevention: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-storage-public-access-prevention
+version: 0.1.0
+title: Cloud Storage bucket enforces public access prevention
+severity: medium
+services:
+- storage
+resource_types:
+- storage.bucket
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: partial
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_storage_bucket.rego
+  directive: directive.json
+crosswalk:
+- framework_id: pci-dss
+  control_id: 1.4.4
+  control_title: Components storing cardholder data are not reachable from untrusted networks
+- framework_id: cis-gcp-foundations
+  control_id: '5.1'
+  control_title: Cloud Storage buckets are not publicly accessible
+- framework_id: fedramp-moderate
+  control_id: AC-3
+  control_title: Access Enforcement
+- framework_id: nist-800-53
+  control_id: AC-3
+  control_title: Access Enforcement
+- framework_id: cccs-medium
+  control_id: AC-3
+  control_title: Access Enforcement
+- framework_id: soc2
+  control_id: CC6.1
+  control_title: Logical access security over protected assets
+- framework_id: iso-27001
+  control_id: '8.3'
+  control_title: Information access restriction
+params_schema:
+  params: []
+authored_by: acse_pack

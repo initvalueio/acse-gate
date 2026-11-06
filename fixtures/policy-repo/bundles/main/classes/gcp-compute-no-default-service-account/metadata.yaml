@@ -1,0 +1,46 @@
+# gcp-compute-no-default-service-account: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-compute-no-default-service-account
+version: 0.1.0
+title: VM instance does not use the default service account
+severity: medium
+services:
+- compute
+resource_types:
+- compute.instance
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: partial
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_instance.rego
+crosswalk:
+- framework_id: pci-dss
+  control_id: 7.2.5
+  control_title: System and application accounts are assigned and managed
+- framework_id: cis-gcp-foundations
+  control_id: '4.1'
+  control_title: Instances do not use the default service account
+- framework_id: fedramp-moderate
+  control_id: AC-6
+  control_title: Least Privilege
+- framework_id: nist-800-53
+  control_id: AC-6
+  control_title: Least Privilege
+- framework_id: cccs-medium
+  control_id: AC-6
+  control_title: Least Privilege
+- framework_id: soc2
+  control_id: CC6.3
+  control_title: Access is authorized, modified and removed
+- framework_id: iso-27001
+  control_id: '8.2'
+  control_title: Privileged access rights
+params_schema:
+  params: []
+authored_by: acse_pack

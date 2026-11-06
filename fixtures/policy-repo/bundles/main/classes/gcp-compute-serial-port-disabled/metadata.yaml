@@ -1,0 +1,56 @@
+# gcp-compute-serial-port-disabled: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-compute-serial-port-disabled
+version: 0.1.0
+title: VM instance does not allow serial port connections
+severity: medium
+services:
+- compute
+resource_types:
+- compute.instance
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: partial
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_instance.rego
+  directive: directive.json
+crosswalk:
+- framework_id: pci-dss
+  control_id: 2.2.4
+  control_title: Only necessary services and functions are enabled
+- framework_id: cis-gcp-foundations
+  control_id: '4.5'
+  control_title: Serial port access is disabled
+- framework_id: fedramp-moderate
+  control_id: CM-7
+  control_title: Least Functionality
+- framework_id: fedramp-moderate
+  control_id: AC-17
+  control_title: Remote Access
+- framework_id: nist-800-53
+  control_id: CM-7
+  control_title: Least Functionality
+- framework_id: nist-800-53
+  control_id: AC-17
+  control_title: Remote Access
+- framework_id: cccs-medium
+  control_id: CM-7
+  control_title: Least Functionality
+- framework_id: cccs-medium
+  control_id: AC-17
+  control_title: Remote Access
+- framework_id: soc2
+  control_id: CC6.6
+  control_title: Threats from outside system boundaries
+- framework_id: iso-27001
+  control_id: '8.9'
+  control_title: Configuration management
+params_schema:
+  params: []
+authored_by: acse_pack

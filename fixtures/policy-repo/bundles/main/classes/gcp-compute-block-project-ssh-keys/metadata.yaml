@@ -1,0 +1,56 @@
+# gcp-compute-block-project-ssh-keys: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-compute-block-project-ssh-keys
+version: 0.1.0
+title: VM instance blocks project-wide SSH keys
+severity: low
+services:
+- compute
+resource_types:
+- compute.instance
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: complete
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_compute_instance.rego
+  directive: directive.json
+crosswalk:
+- framework_id: pci-dss
+  control_id: 8.2.2
+  control_title: Shared accounts are used only when necessary
+- framework_id: cis-gcp-foundations
+  control_id: '4.3'
+  control_title: Instances block project-wide SSH keys
+- framework_id: fedramp-moderate
+  control_id: AC-2
+  control_title: Account Management
+- framework_id: fedramp-moderate
+  control_id: IA-5
+  control_title: Authenticator Management
+- framework_id: nist-800-53
+  control_id: AC-2
+  control_title: Account Management
+- framework_id: nist-800-53
+  control_id: IA-5
+  control_title: Authenticator Management
+- framework_id: cccs-medium
+  control_id: AC-2
+  control_title: Account Management
+- framework_id: cccs-medium
+  control_id: IA-5
+  control_title: Authenticator Management
+- framework_id: soc2
+  control_id: CC6.1
+  control_title: Logical access security over protected assets
+- framework_id: iso-27001
+  control_id: '5.17'
+  control_title: Authentication information
+params_schema:
+  params: []
+authored_by: acse_pack

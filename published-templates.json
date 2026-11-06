@@ -1,0 +1,12 @@
+{
+  "published_templates_version": "1.0",
+  "template_format": "acse-gate-template-1",
+  "releases": [
+    {
+      "release": "1.0.0",
+      "template_digest": "sha256:6d724daf0a20f920538c670bb39ceaa4135f18dab296fe99b261fbe764fcecaa",
+      "released_on": "2026-11-05",
+      "state": "current"
+    }
+  ]
+}

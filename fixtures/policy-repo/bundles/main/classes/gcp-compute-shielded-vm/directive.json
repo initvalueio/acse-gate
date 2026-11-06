@@ -1,0 +1,133 @@
+{
+  "bundle_id": "gcp-compute-shielded-vm",
+  "bundle_version": "0.1.0",
+  "rule_id": "shielded-vm",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-compute-shielded-vm",
+  "directive_version": "1.1",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_compute_instance",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "shielded_instance_config",
+          "enable_secure_boot"
+        ],
+        "value": true,
+        "create_missing_blocks": true
+      },
+      {
+        "op": "set",
+        "path": [
+          "shielded_instance_config",
+          "enable_vtpm"
+        ],
+        "value": true,
+        "create_missing_blocks": true
+      },
+      {
+        "op": "set",
+        "path": [
+          "shielded_instance_config",
+          "enable_integrity_monitoring"
+        ],
+        "value": true,
+        "create_missing_blocks": true
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "shielded_vm_enabled",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud compute instances stop",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          }
+        ],
+        [
+          "gcloud compute instances update",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          },
+          {
+            "change": 0,
+            "values": {
+              "true": "--shielded-secure-boot",
+              "false": "--no-shielded-secure-boot"
+            }
+          },
+          {
+            "change": 1,
+            "values": {
+              "true": "--shielded-vtpm",
+              "false": "--no-shielded-vtpm"
+            }
+          },
+          {
+            "change": 2,
+            "values": {
+              "true": "--shielded-integrity-monitoring",
+              "false": "--no-shielded-integrity-monitoring"
+            }
+          }
+        ],
+        [
+          "gcloud compute instances start",
+          {
+            "group": "name"
+          },
+          "--zone",
+          {
+            "group": "zone"
+          },
+          "--project",
+          {
+            "group": "project"
+          }
+        ]
+      ]
+    }
+  },
+  "required_label": "CIS GCP 4.8",
+  "recommended": [
+    {
+      "source": "NIST 800-53 SI-7",
+      "check_id": "gcp-compute-secure-boot",
+      "caveat": "The VM stops while this is applied, and Secure Boot refuses unsigned drivers, kernel modules and custom images, so a VM that relies on them may not boot. Test first.",
+      "changes": [
+        0
+      ]
+    }
+  ]
+}

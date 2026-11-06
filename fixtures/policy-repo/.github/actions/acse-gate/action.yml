@@ -1,0 +1,94 @@
+# ACSE gate: the composite action the policy repository's acse-gate.yml runs.
+#
+# It evaluates one Terraform plan (terraform show -json) with plain, pinned opa against the policy bundle that GitHub
+# fetched together with this action (bundles/current in the same repository), annotates the pull request, and sends
+# a verdict-only report. Nothing in it needs ACSE to be reachable: the report is the only call to ACSE, and its failure
+# never changes the job's outcome. The job fails only when a class in enforce mode fails.
+#
+# Part of the gate template (acse-gate-template-1 covers this directory and .github/workflows/acse-gate.yml). An
+# edited copy still gates, but ACSE refuses its reports.
+name: ACSE gate
+description: Evaluate a Terraform plan against the policy bundle in this repository with pinned OPA, and report the verdict.
+inputs:
+  plan-json:
+    description: Path to the plan as JSON (terraform show -json), relative to the workspace or absolute.
+    required: true
+  tfvars-json:
+    description: Optional path to the variables as JSON, used only to name a resource's project.
+    required: false
+    default: ""
+  working-directory:
+    description: The Terraform root the plan was made in, relative to the workspace. Used to find file and line.
+    required: false
+    default: "."
+  audience:
+    description: The OIDC audience of this repository's registration in ACSE (acse-gate:<registration>). Empty sends no report.
+    required: false
+    default: ""
+  tenant-id:
+    description: Your ACSE tenant id, as Setup shows it. Empty sends no report.
+    required: false
+    default: ""
+  report-url:
+    description: The ACSE report endpoint (https). Empty sends no report.
+    required: false
+    default: ""
+  github-token:
+    description: Used only to post suggested changes on the pull request, when the job grants pull-requests write.
+    required: false
+    default: ${{ github.token }}
+  opa-path:
+    description: Optional path to an opa binary already on the runner. It must match the pinned checksum.
+    required: false
+    default: ""
+outputs:
+  verdict:
+    description: pass, fail or error.
+    value: ${{ steps.evaluate.outputs.verdict }}
+  report-state:
+    description: What happened to the report (counted, held, pending, refused, undelivered, skipped).
+    value: ${{ steps.report.outputs.state }}
+runs:
+  using: composite
+  steps:
+    - id: evaluate
+      name: Evaluate the plan
+      shell: bash
+      env:
+        ACSE_GATE_ACTION_DIR: ${{ github.action_path }}
+        ACSE_GATE_PLAN: ${{ inputs.plan-json }}
+        ACSE_GATE_TFVARS: ${{ inputs.tfvars-json }}
+        ACSE_GATE_WORKDIR: ${{ inputs.working-directory }}
+        ACSE_GATE_OPA_PATH: ${{ inputs.opa-path }}
+      run: bash "$ACSE_GATE_ACTION_DIR/gate.sh" evaluate
+
+    - id: annotate
+      name: Annotate the pull request
+      if: always()
+      shell: bash
+      env:
+        ACSE_GATE_ACTION_DIR: ${{ github.action_path }}
+        ACSE_GATE_PLAN: ${{ inputs.plan-json }}
+        ACSE_GATE_WORKDIR: ${{ inputs.working-directory }}
+        ACSE_GATE_GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: bash "$ACSE_GATE_ACTION_DIR/gate.sh" annotate || echo "::warning title=ACSE gate::annotations could not be completed"
+
+    - id: report
+      name: Report the verdict
+      if: always()
+      shell: bash
+      env:
+        ACSE_GATE_ACTION_DIR: ${{ github.action_path }}
+        ACSE_GATE_AUDIENCE: ${{ inputs.audience }}
+        ACSE_GATE_TENANT_ID: ${{ inputs.tenant-id }}
+        ACSE_GATE_REPORT_URL: ${{ inputs.report-url }}
+        ACSE_GATE_CHECK_RUN_ID: ${{ job.check_run_id }}
+      run: bash "$ACSE_GATE_ACTION_DIR/gate.sh" report || echo "::warning title=ACSE gate::the report was not delivered"
+
+    - id: decide
+      name: Decide the job's outcome
+      if: always()
+      shell: bash
+      env:
+        ACSE_GATE_ACTION_DIR: ${{ github.action_path }}
+      run: bash "$ACSE_GATE_ACTION_DIR/gate.sh" decide

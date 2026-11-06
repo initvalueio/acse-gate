@@ -1,0 +1,47 @@
+{
+  "bundle_id": "gcp-storage-public-access-prevention",
+  "bundle_version": "0.1.0",
+  "rule_id": "public-access-prevention",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-storage-public-access-prevention",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_storage_bucket",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "public_access_prevention"
+        ],
+        "value": "enforced"
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "public_access_prevention_enforced",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud storage buckets update",
+          {
+            "group": "bucket",
+            "prefix": "gs://"
+          },
+          "--public-access-prevention"
+        ]
+      ]
+    }
+  }
+}

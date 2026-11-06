@@ -1,0 +1,53 @@
+{
+  "bundle_id": "gcp-storage-access-logging",
+  "bundle_version": "0.1.0",
+  "rule_id": "storage-access-logging",
+  "rule_version": "0.1.0",
+  "directive_id": "gcp-storage-access-logging",
+  "directive_version": "1.0",
+  "terraform": {
+    "provider_source": "registry.terraform.io/hashicorp/google",
+    "provider_version": "6.8.0",
+    "bound_resource_type": "google_storage_bucket",
+    "target": {
+      "kind": "bound"
+    },
+    "changes": [
+      {
+        "op": "set",
+        "path": [
+          "logging",
+          "log_bucket"
+        ],
+        "value": "<LOG_BUCKET>",
+        "create_missing_blocks": true
+      }
+    ],
+    "planned_state": {
+      "facts": [
+        {
+          "name": "access_logging_enabled",
+          "value": true
+        }
+      ]
+    }
+  },
+  "cli": {
+    "gcloud": {
+      "commands": [
+        [
+          "gcloud storage buckets update",
+          {
+            "group": "bucket",
+            "prefix": "gs://"
+          },
+          "--log-bucket=gs://<LOG_BUCKET>",
+          "--log-object-prefix",
+          {
+            "group": "bucket"
+          }
+        ]
+      ]
+    }
+  }
+}

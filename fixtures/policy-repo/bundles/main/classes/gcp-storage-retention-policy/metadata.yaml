@@ -1,0 +1,52 @@
+# gcp-storage-retention-policy: policy-metadata-1.1 (ledger 07 GC-4, lane B). Generated from the check's descriptor
+# (packkit.metadata.metadata_block) with metadata_version 1.1, capabilities.gate and control titles added.
+# The gate block names its Terraform plan normaliser.
+metadata_version: '1.1'
+id: gcp-storage-retention-policy
+version: 0.1.0
+title: Cloud Storage bucket has a retention policy
+severity: low
+services:
+- storage
+resource_types:
+- storage.bucket
+capabilities:
+  detect: true
+  gate: true
+  enforce: false
+gate:
+  establishes: complete
+  normalisers:
+  - input_kind: terraform_plan
+    file: google_storage_bucket.rego
+crosswalk:
+- framework_id: pci-dss
+  control_id: 10.5.1
+  control_title: Audit logs are retained for 12 months
+- framework_id: fedramp-moderate
+  control_id: AU-11
+  control_title: Audit Record Retention
+- framework_id: fedramp-moderate
+  control_id: CP-9
+  control_title: System Backup
+- framework_id: nist-800-53
+  control_id: AU-11
+  control_title: Audit Record Retention
+- framework_id: nist-800-53
+  control_id: CP-9
+  control_title: System Backup
+- framework_id: cccs-medium
+  control_id: AU-11
+  control_title: Audit Record Retention
+- framework_id: cccs-medium
+  control_id: CP-9
+  control_title: Information System Backup
+- framework_id: soc2
+  control_id: A1.2
+  control_title: Environmental protections, backup and recovery infrastructure
+- framework_id: iso-27001
+  control_id: '8.13'
+  control_title: Information backup
+params_schema:
+  params: []
+authored_by: acse_pack
