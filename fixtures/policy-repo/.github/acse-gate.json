@@ -1,0 +1,11 @@
+{
+  "gate_config_format_version": "1.0",
+  "tenant": "fixture-tenant",
+  "audience": "acse-gate:gta-0123456789abcdef0123456789abcdef",
+  "report_url": "https://127.0.0.1:9/api/gate/v1/reports",
+  "generated_from": {
+    "repository": "example-org/acse-setup",
+    "commit": "0000000000000000000000000000000000000000",
+    "tenant_yaml_sha256": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}
