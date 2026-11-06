@@ -2,23 +2,25 @@
 #
 #   jobs:
 #     acse-gate:
-#       needs: plan                      # the job that uploaded the plan as an artifact
+#       needs: plan                      # the job that uploaded the plan as the artifact acse-gate-plan
 #       permissions:
 #         contents: read
 #         id-token: write                # the verdict-only report (no secret)
 #         pull-requests: write           # optional: suggested changes as review comments
 #       uses: <org>/<policy-repo>/.github/workflows/acse-gate.yml@main
-#       with:
-#         plan-artifact: acse-gate-plan
-#         working-directory: infra
-#         audience: acse-gate:<registration>
-#         tenant-id: <tenant>
-#         report-url: https://<your ACSE address>/api/gate/v1/reports
 #
-# It needs no credential. GitHub fetches this workflow, the composite action and the policy bundle beside them through
-# this repository's "Accessible from repositories in the organization" Actions setting. Strictness lives in the
-# bundle (bundles/<name>/bundle.json), never here. Part of the gate template (acse-gate-template-1): an edited copy
-# still gates, but ACSE refuses its reports.
+# That is the whole caller, the same in every repository: it carries no audience, tenant id or report URL. Where the
+# verdict goes is read at run time from .github/acse-gate.json in this policy repository (gate-config-1.0, generated
+# by your ACSE setup apply). Without that file the gate still gates and sends no report.
+#
+# It needs no credential. GitHub fetches this workflow, the composite action, its config and the policy bundle beside
+# them through this repository's "Accessible from repositories in the organization" Actions setting. Strictness lives
+# in the bundle (bundles/<name>/bundle.json), never here.
+#
+# This file is a shell: one job that runs the composite action. Everything the gate does is in
+# .github/actions/acse-gate/, so a new release normally changes only the action, which ACSE proposes by pull request.
+# ACSE never writes this file: when a release does change it, ACSE shows you the new file, its digest and why, and you
+# apply it. Part of the gate template (acse-gate-template-1): an edited copy still gates, but ACSE refuses its reports.
 name: acse-gate
 
 on:
@@ -40,18 +42,6 @@ on:
         description: The Terraform root the plan was made in, relative to the repository root.
         type: string
         default: "."
-      audience:
-        description: The OIDC audience of the repository's registration in ACSE. Empty sends no report.
-        type: string
-        default: ""
-      tenant-id:
-        description: Your ACSE tenant id. Empty sends no report.
-        type: string
-        default: ""
-      report-url:
-        description: The ACSE report endpoint (https). Empty sends no report.
-        type: string
-        default: ""
       runs-on:
         description: The runner label (linux, x64).
         type: string
@@ -69,24 +59,16 @@ jobs:
     outputs:
       verdict: ${{ steps.gate.outputs.verdict }}
     steps:
-      - name: Check out the code under review
+      - name: Check out this repository (fixture only, so that the local composite action below can be found)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Fetch the plan
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: ${{ inputs.plan-artifact }}
-          path: ${{ runner.temp }}/acse-gate-input
 
       - name: Gate
         id: gate
         uses: ./fixtures/policy-repo/.github/actions/acse-gate
         with:
-          plan-json: ${{ runner.temp }}/acse-gate-input/${{ inputs.plan-file }}
-          tfvars-json: ${{ inputs.tfvars-file != '' && format('{0}/acse-gate-input/{1}', runner.temp, inputs.tfvars-file) || '' }}
+          plan-artifact: ${{ inputs.plan-artifact }}
+          plan-file: ${{ inputs.plan-file }}
+          tfvars-file: ${{ inputs.tfvars-file }}
           working-directory: ${{ inputs.working-directory }}
-          audience: ${{ inputs.audience }}
-          tenant-id: ${{ inputs.tenant-id }}
-          report-url: ${{ inputs.report-url }}

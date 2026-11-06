@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """A stand-in for ACSE's report endpoint, for the fixture CI only.
 
-It records every request (method, path, whether a bearer token came, the body) as one JSON line, and answers as its
-mode says:
+It records every request (method, path, whether a bearer token came, the token's unverified `aud` claim, the body) as
+one JSON line, and answers as its mode says. The token itself is never recorded.
 
   accept       202 {"state": "counted"}
   withdrawn    403 TEMPLATE_WITHDRAWN with the published reason
@@ -19,6 +19,7 @@ Usage: mock_receiver.py --mode accept --port 8787 --log receiver.jsonl
 from __future__ import annotations
 
 import argparse
+import base64
 import http.server
 import json
 import threading
@@ -30,6 +31,21 @@ ANSWERS = {
     "not-current": (403, {"code": "TEMPLATE_NOT_CURRENT",
                           "message": "the gate template at this commit is not a published release"}),
 }
+
+
+def token_audience(authorization: str) -> str | None:
+    """The `aud` claim of a JWT bearer token, read without verifying it (GitHub's OIDC token; the fixture CI checks
+    the gate asked for the audience its config names). `None` when the token is not a readable JWT."""
+    token = authorization[len("Bearer "):] if authorization.startswith("Bearer ") else ""
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        claims = json.loads(base64.urlsafe_b64decode(parts[1] + "=" * (-len(parts[1]) % 4)))
+    except ValueError:
+        return None
+    aud = claims.get("aud") if isinstance(claims, dict) else None
+    return aud if isinstance(aud, str) else None
 
 
 def main() -> None:
@@ -79,6 +95,7 @@ def main() -> None:
                         "n": n, "path": self.path,
                         "bearer": (self.headers.get("Authorization") or "").startswith("Bearer ")
                         and len(self.headers.get("Authorization")) > len("Bearer "),
+                        "aud": token_audience(self.headers.get("Authorization") or ""),
                         "content_type": self.headers.get("Content-Type"),
                         "body": body,
                     }) + "\n")

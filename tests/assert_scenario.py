@@ -46,6 +46,12 @@ SCENARIOS = {
     "mode-switch": dict(verdict="pass", outcome="success", report="counted", posts=1,
                         run2=dict(verdict="fail", outcome="failure")),
     "salted": dict(verdict="fail", outcome="failure", report="counted", posts=1, salted=True, variant_tree=True),
+    # Template 1.1.0: no .github/acse-gate.json, or one that is not gate-config-1.0 (here the retired per-registration
+    # audience): the gate still gates, and nothing is sent.
+    "no-config": dict(verdict="pass", outcome="success", report="skipped", posts=0,
+                      detail="has no .github/acse-gate.json"),
+    "bad-config": dict(verdict="pass", outcome="success", report="skipped", posts=0,
+                       detail="not a valid gate-config-1.0"),
 }
 
 errors: list[str] = []
@@ -61,8 +67,9 @@ def load(path: pathlib.Path):
 
 
 def published_current() -> dict:
+    """The newest current release: the one template/ (and so the fixture) carries."""
     releases = load(ROOT / "published-templates.json")["releases"]
-    return [r for r in releases if r["state"] == "current"][-1]
+    return max((r for r in releases if r["state"] == "current"), key=lambda r: tuple(int(x) for x in r["release"].split(".")))
 
 
 def class_digest(directory: pathlib.Path, check_id: str) -> str:
@@ -161,6 +168,8 @@ def main() -> int:
     expect(outcome["state"] == want["report"], f"{name}: report state {outcome['state']}, expected {want['report']}")
     if want.get("refusal"):
         expect(want["refusal"] in outcome["detail"], f"{name}: the refusal reason is not carried: {outcome['detail']}")
+    if want.get("detail"):
+        expect(want["detail"] in outcome["detail"], f"{name}: the report outcome's detail is {outcome['detail']!r}")
     posts = []
     if args.receiver_log and args.receiver_log.exists():
         posts = [json.loads(line) for line in args.receiver_log.read_text().splitlines() if line.strip()]
@@ -169,9 +178,17 @@ def main() -> int:
     finding = load(args.run1 / "finding.json")
     addresses = {f["address"] for f in finding["findings"]}
     current = published_current()
+    # Where the report goes is the policy repository's gate config (template 1.1.0), never a caller's input.
+    config_root = args.variant_root if args.variant_root else POLICY_REPO
+    config_file = config_root / ".github/acse-gate.json"
+    config = load(config_file) if config_file.exists() else {}
     for post in posts[: want["posts"]]:
         body = post["body"]
         expect(post["bearer"], f"{name}: the report came without a bearer token")
+        expect(body.get("tenant_id") == config.get("tenant"),
+               f"{name}: the report's tenant_id {body.get('tenant_id')!r} is not the config's {config.get('tenant')!r}")
+        expect(post.get("aud") == config.get("audience"),
+               f"{name}: the OIDC token's audience {post.get('aud')!r} is not the config's {config.get('audience')!r}")
         expect(post["path"] == "/api/gate/v1/reports", f"{name}: posted to {post['path']}")
         expect("oidc" not in body and "keep_names_in_cloud" not in body, f"{name}: the body carries members ACSE writes")
         raw = json.dumps(body)
@@ -181,7 +198,7 @@ def main() -> int:
             expect(word not in raw, f"{name}: the report carries '{word}'")
         # Valid gate-run-report-2.0 once ACSE adds the members it writes from the verified token.
         completed = dict(body, keep_names_in_cloud=False, oidc={
-            "issuer": "https://token.actions.githubusercontent.com", "audience": "acse-gate:fixture",
+            "issuer": "https://token.actions.githubusercontent.com", "audience": config.get("audience"),
             "repository_id": "1", "workflow_ref_digest": "sha256:" + "0" * 64, "gate_workflow_ref_digest": "sha256:" + "0" * 64,
             "gate_repository_key": "rp-" + "0" * 64, "gate_workflow_commit": "0" * 40, "run_id": "1", "run_attempt": 1,
             "token_id_digest": "sha256:" + "0" * 64, "issued_at": "2026-11-05T00:00:00Z", "expires_at": "2026-11-05T00:05:00Z"})

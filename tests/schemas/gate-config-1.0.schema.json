@@ -1,0 +1,56 @@
+{
+  "$comment": "Derived from ACSE's contract common/gate-config-1.0 (descriptions removed); validation only.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "gate-config-1.0.schema.json",
+  "title": "ACSE Gate Config 1.0",
+  "type": "object",
+  "required": [
+    "gate_config_format_version",
+    "tenant",
+    "audience",
+    "report_url",
+    "generated_from"
+  ],
+  "properties": {
+    "gate_config_format_version": {
+      "const": "1.0"
+    },
+    "tenant": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$"
+    },
+    "audience": {
+      "type": "string",
+      "pattern": "^acse-gate:gta-[0-9a-f]{32}$"
+    },
+    "report_url": {
+      "type": "string",
+      "pattern": "^https://[!-~]{1,500}$"
+    },
+    "generated_from": {
+      "$comment": "Provenance only; the gate does not use it, and the drift check excludes it.",
+      "type": "object",
+      "required": [
+        "repository",
+        "commit",
+        "tenant_yaml_sha256"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+        },
+        "tenant_yaml_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

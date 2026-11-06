@@ -64,6 +64,8 @@ jobs:
           - { scenario: duplicate, case: observe-fail, receiver: duplicate }
           - { scenario: mode-switch, case: observe-fail, receiver: accept, variant: versioning-enforce }
           - { scenario: salted, case: enforce-fail, receiver: accept, variant: salted }
+          - { scenario: no-config, case: pass, receiver: accept, config: none }
+          - { scenario: bad-config, case: pass, receiver: accept, config: per-registration-audience }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -81,6 +83,21 @@ jobs:
           for _ in $(seq 1 50); do curl -fsS http://127.0.0.1:8787/ready >/dev/null 2>&1 && exit 0; sleep 0.2; done
           cat "$RUNNER_TEMP/receiver.out"; exit 1
 
+      # Template 1.1.0 reads where the report goes from .github/acse-gate.json in the policy repository (gate-config-1.0),
+      # never from a caller. The committed fixture config names an unreachable https endpoint; each scenario points it
+      # at the stand-in receiver, leaves it unreachable, removes it, or makes it invalid (the old per-registration
+      # audience), before any variant is copied from the fixture.
+      - name: Write the gate config (${{ matrix.config || 'receiver' }})
+        env:
+          CONFIG: fixtures/policy-repo/.github/acse-gate.json
+          URL: ${{ matrix.unreachable && env.UNREACHABLE_URL || env.REPORT_URL }}
+        run: |
+          case "${{ matrix.config }}" in
+            none) rm "$CONFIG" ;;
+            per-registration-audience) jq '.audience = "acse-gate:cig-0123456789abcdef0123456789abcdef"' "$CONFIG" >"$CONFIG.new" && mv "$CONFIG.new" "$CONFIG" ;;
+            *) jq --arg url "$URL" '.report_url = $url' "$CONFIG" >"$CONFIG.new" && mv "$CONFIG.new" "$CONFIG" ;;
+          esac
+
       - name: Prepare the variant policy repository (${{ matrix.variant }})
         if: matrix.variant != ''
         run: tests/make_variant.sh "${{ matrix.variant }}" _variant
@@ -94,9 +111,6 @@ jobs:
           plan-json: fixtures/plans/${{ matrix.case }}.json
           tfvars-json: fixtures/plans/tfvars.json
           working-directory: fixtures/iac/${{ matrix.case }}
-          audience: acse-gate:fixture
-          tenant-id: fixture-tenant
-          report-url: ${{ matrix.unreachable && env.UNREACHABLE_URL || env.REPORT_URL }}
           github-token: ${{ matrix.post && github.token || '' }}
 
       - name: Gate (the salted variant)
@@ -108,9 +122,6 @@ jobs:
           plan-json: fixtures/plans/${{ matrix.case }}.json
           tfvars-json: fixtures/plans/tfvars.json
           working-directory: fixtures/iac/${{ matrix.case }}
-          audience: acse-gate:fixture
-          tenant-id: fixture-tenant
-          report-url: ${{ env.REPORT_URL }}
           github-token: ""
 
       - name: Keep the first run's results
@@ -131,9 +142,6 @@ jobs:
           plan-json: ${{ runner.temp }}/fixed-plan.json
           tfvars-json: fixtures/plans/tfvars.json
           working-directory: fixtures/iac/enforce-fail
-          audience: acse-gate:fixture
-          tenant-id: fixture-tenant
-          report-url: ${{ env.REPORT_URL }}
           github-token: ""
 
       - name: Gate (AC-G4 · versioning switched to enforce in bundle.json)
@@ -145,9 +153,6 @@ jobs:
           plan-json: fixtures/plans/${{ matrix.case }}.json
           tfvars-json: fixtures/plans/tfvars.json
           working-directory: fixtures/iac/${{ matrix.case }}
-          audience: acse-gate:fixture
-          tenant-id: fixture-tenant
-          report-url: ${{ env.REPORT_URL }}
           github-token: ""
 
       - name: Keep the second run's results
@@ -197,9 +202,6 @@ jobs:
       plan-artifact: acse-gate-plan-pass
       tfvars-file: tfvars.json
       working-directory: fixtures/iac/pass
-      audience: acse-gate:fixture
-      tenant-id: fixture-tenant
-      report-url: https://127.0.0.1:9/api/gate/v1/reports
 
   reusable-observe-fail:
     needs: plans
@@ -209,9 +211,6 @@ jobs:
       plan-artifact: acse-gate-plan-observe-fail
       tfvars-file: tfvars.json
       working-directory: fixtures/iac/observe-fail
-      audience: acse-gate:fixture
-      tenant-id: fixture-tenant
-      report-url: https://127.0.0.1:9/api/gate/v1/reports
 
   reusable-unknown:
     needs: plans

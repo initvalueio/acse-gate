@@ -7,6 +7,12 @@
       "template_digest": "sha256:6d724daf0a20f920538c670bb39ceaa4135f18dab296fe99b261fbe764fcecaa",
       "released_on": "2026-11-05",
       "state": "current"
+    },
+    {
+      "release": "1.1.0",
+      "template_digest": "sha256:8de9b773da94514a7a2596d10aebfca0c8fda92bfbb864974b02ab1750ef4da1",
+      "released_on": "2026-11-06",
+      "state": "current"
     }
   ]
 }

@@ -41,3 +41,34 @@ literally. Every tenant's copy therefore differs in that one line.
 | D-13 | Runner platform | Linux x64 (the pinned opa build). `opa-path` takes a pre-installed binary with the same checksum, for runners without internet access | Low |
 | D-14 | The fixture CI runs no Terraform | Plans are fixtures in `terraform show -json` shape, checked into the repository. AC-G3 is shown in two halves: the suggestion applied to the source equals the expected fix, and the same structured change applied to the plan passes. This avoids provider credentials and any Terraform run in CI | Low |
 | D-15 | Schemas in `tests/schemas/` | Validation-only copies of ACSE's contracts, with descriptions removed | Low |
+
+## Template 1.1.0 — the config file and the thin workflow (2026-11-06)
+
+Two decisions of Koushik's, of 2026-11-06, drive this release:
+
+- **GA-1** (cio-acse-design ADR-0085 Amendment 2 §A2.1): one audience per tenant, `acse-gate:gta-<32 hex>`, carried in
+  `.github/acse-gate.json` in the policy repository (ACSE's contract `gate-config-1.0`), read by the gate at run time.
+  No caller ever contains it, and the template stays byte-identical across tenants under D-1's placeholder rule.
+- **Workflow templates are customer-applied.** ACSE's App never holds `workflows`, and GitHub refuses App pushes under
+  `.github/workflows/`. ACSE's pull request writes the composite action only; a change to the workflow file is shown
+  to the customer as file, digest and a one-line reason (informational, never amber), and the customer applies it. So
+  the workflow is kept a thin shell and all logic lives in the composite action.
+
+What 1.1.0 changes:
+- the workflow has one job with one step, the composite action. It drops `audience`, `tenant-id` and `report-url`;
+- the composite action checks out the code under review and downloads the plan when given `plan-artifact`. It reads
+  the tenant, the audience and the report URL from `.github/acse-gate.json` beside it (`$POLICY_ROOT`, fetched by
+  GitHub with the action), asks for the OIDC token for that audience and reports there;
+- the fixture CI checks that the report's `tenant_id` and the token's `aud` are the config's, and adds the
+  `no-config` and `bad-config` scenarios (no report, the verdict stands).
+
+| # | Question | Default | Cost of changing |
+|---|---|---|---|
+| T-1 | Where the OIDC token request lives | **In the composite action**, not the workflow. The config reaches the runner only with the action (the workflow may name the policy repository once, D-1, and there is no credential to fetch it otherwise), and D-8 asks for a fresh token per attempt | Low |
+| T-2 | Checkout and plan download | **Moved into the composite action** (when `plan-artifact` is set), so that a pin bump of `actions/checkout` or `actions/download-artifact` is an action change ACSE can propose, not a workflow change | Low |
+| T-3 | The action's path inputs (`plan-json`, `tfvars-json`) | **Kept**, used when `plan-artifact` is empty. A 1.0.0 workflow calling the 1.1.0 action still gates (its `audience`, `tenant-id` and `report-url` become GitHub's "unexpected input" warnings), so the action may land before the workflow. The fixture CI uses them | Low |
+| T-4 | A missing or invalid `.github/acse-gate.json` | **No report**, the verdict stands: a notice when missing (GA-23), a warning when it is not `gate-config-1.0` (members, version, patterns). Plain `http://` is admitted on loopback only, as D-9 does, although the contract says https: the fixture's stand-in receiver needs it | Low |
+| T-5 | Release 1.0.0 | **Listed, `current`, not withdrawn.** Its callers carry a per-registration audience, which ADR-0085 Am.2 GA-2 refuses once built, so its reports stop counting then regardless; no live registration exists | Low |
+| T-6 | The upgrade window (**open: for Koushik**) | `acse-gate-template-1` covers the workflow **and** the action. ACSE's pull request writes the action only, so a policy repository that merges it without the new workflow holds a copy whose digest is no release: reports are refused `TEMPLATE_NOT_CURRENT` and Setup shows "edited" (amber) until the workflow lands. **Default:** ACSE's pull request body and the "gate workflow update available" item ask the customer to add the workflow file to ACSE's pull request branch before merging, so both land in one merge. Applying the 1.1.0 workflow before the action breaks the gate (the 1.0.0 action requires `plan-json`). Alternatives: a template format whose digest covers the action only (a contract change), or the control plane accepting "current action, older workflow" | **Medium**: it decides every future workflow-changing release, and only a contract change avoids the window |
+| T-7 | The fixture reusable workflow | The template's workflow, rendered, **plus one checkout step** before the action: a local `./` action is found only in a checked-out workspace. The static check compares it with exactly that | Low |
+| T-8 | `released_on` | 2026-11-06, the date of this pull request; the `v1.1.0` tag is pushed after it merges, and the release workflow checks it | Low |

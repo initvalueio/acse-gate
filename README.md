@@ -14,15 +14,19 @@ your IaC repository                         your policy repository (acse-policie
 ───────────────────                         ──────────────────────────────────────
 job: plan                                   .github/workflows/acse-gate.yml      ← the thin reusable workflow
   terraform plan -out tfplan                .github/actions/acse-gate/           ← the composite action it runs
-  terraform show -json tfplan > plan.json   bundles/current                      ← names the bundle directory
-  upload-artifact acse-gate-plan            bundles/<name>/bundle.json           ← observe / enforce, per class and label
-job: acse-gate                              bundles/<name>/gate/, classes/<id>/  ← the Rego, the same that detect runs
+  terraform show -json tfplan > plan.json   .github/acse-gate.json               ← where the verdict goes (generated)
+  upload-artifact acse-gate-plan            bundles/current                      ← names the bundle directory
+job: acse-gate                              bundles/<name>/bundle.json           ← observe / enforce, per class and label
+                                            bundles/<name>/gate/, classes/<id>/  ← the Rego, the same that detect runs
   uses: <org>/acse-policies/.github/workflows/acse-gate.yml@main
 ```
 
-GitHub fetches the workflow, the action and the bundle together, through the policy repository's
+GitHub fetches the workflow, the action, the config and the bundle together, through the policy repository's
 **Actions → General → Access → "Accessible from repositories in the organization"** setting. You turn this on once.
 No token, deploy key or App is involved.
+
+The workflow is a shell: one job with one step, the composite action. Everything below happens in the action, so a
+new release normally changes only `.github/actions/acse-gate/`.
 
 The gate job:
 
@@ -39,7 +43,8 @@ The gate job:
 5. annotates the pull request with the rule, the controls it maps to, and the suggested change where the class has
    one. If your job grants `pull-requests: write`, the suggestion is also posted as a one-click review suggestion;
 6. reports the **verdict only** to ACSE with the job's OIDC token: per class, counts, modes and digests. No plan,
-   addresses, values, file names or code are sent;
+   addresses, values, file names or code are sent. The tenant, the token's audience and the report URL come from
+   `.github/acse-gate.json` in the policy repository (below); without it the gate sends no report;
 7. fails the job **only** when a class in `enforce` mode fails.
 
 | Outcome | Annotation | Fails the job |
@@ -80,12 +85,10 @@ jobs:
       pull-requests: write     # optional: one-click suggested changes
     uses: <org>/acse-policies/.github/workflows/acse-gate.yml@main
     with:
-      plan-artifact: acse-gate-plan
       working-directory: infra
-      audience: acse-gate:<registration id>   # from ACSE Setup › Access › CI gate
-      tenant-id: <tenant id>
-      report-url: https://<your ACSE address>/api/gate/v1/reports
 ```
+
+The caller names nothing about your ACSE tenant, so the file is the same in every repository.
 
 | Input | Default | Meaning |
 |---|---|---|
@@ -93,7 +96,6 @@ jobs:
 | `plan-file` | `plan.json` | The plan's path inside the artifact |
 | `tfvars-file` | — | Optional variables JSON inside the artifact (only used to name a resource's project) |
 | `working-directory` | `.` | The Terraform root the plan was made in, for file and line |
-| `audience`, `tenant-id`, `report-url` | — | Where the verdict goes. Leave them empty to gate without reporting |
 | `runs-on` | `ubuntu-latest` | A Linux x64 runner with `bash`, `jq`, `curl`, `git` and `sha256sum` |
 
 The workflow's `verdict` output is `pass`, `fail` or `error`. For several Terraform roots, upload one plan per root
@@ -104,6 +106,26 @@ An artifact of the same run carries any size of plan. It needs no permission and
 run (`retention-days: 1`). A workflow input string has a size limit, and a cache is shared across runs. A plan can
 contain sensitive values, so keep the retention short. Anyone who can read the repository's Actions can download an
 artifact.
+
+## Where the verdict goes: `.github/acse-gate.json`
+
+The policy repository holds one config file, `.github/acse-gate.json` (ACSE's contract `gate-config-1.0`):
+
+```json
+{
+  "gate_config_format_version": "1.0",
+  "tenant": "<tenant id>",
+  "audience": "acse-gate:gta-<32 hex>",
+  "report_url": "https://<your ACSE address>/api/gate/v1/reports",
+  "generated_from": { "repository": "<org>/acse-setup", "commit": "<sha>", "tenant_yaml_sha256": "sha256:<hex>" }
+}
+```
+
+Your ACSE setup apply generates it from `config/tenant.yaml` and commits it with your own credentials; ACSE never
+proposes it. The audience is one per tenant and is not a secret. The gate reads the file at the commit it runs, asks
+GitHub for an OIDC token for that audience, and posts the verdict to that URL. A missing file sends no report (a
+notice); a file that is not valid `gate-config-1.0` sends no report (a warning). Either way the verdict stands. The
+file is outside the template, so it is outside the template digest.
 
 ## The template, releases and digests
 
@@ -119,9 +141,21 @@ artifact.
   `.github/workflows/acse-gate.yml` and every file under `.github/actions/acse-gate/`, sorted by path. The workflow's
   one action line is hashed in its placeholder form, so your rendered copy has the published digest. Recompute it with
   `tools/template-digest.sh <repository root>` (needs `find`, `sort`, `grep`, `sed`, `sha256sum` and `jq`).
+- **ACSE never writes the workflow file.** GitHub refuses App pushes under `.github/workflows/`, and ACSE's App does
+  not hold the `workflows` permission. ACSE's pull request writes `.github/actions/acse-gate/` only. When a release
+  changes `.github/workflows/acse-gate.yml`, ACSE shows the new file, its sha256 and the reason (the table below) as
+  "gate workflow update available": informational, never amber. Add it to ACSE's pull request branch before you merge
+  that pull request, so the two land together: until both have, the template's digest is not a published release.
 - Each release is a tag `v<release>`. The release workflow publishes the template archive, its digest and the
   published list, each with a build-provenance attestation:
   `gh attestation verify acse-gate-template-<release>.tar.gz --repo initvalueio/acse-gate`.
+
+## Releases
+
+| Release | Workflow file changed | Why |
+|---|---|---|
+| 1.0.0 | (first release) | The reusable workflow, the composite action and the published set |
+| 1.1.0 | yes | The workflow becomes a one-step shell and drops `audience`, `tenant-id` and `report-url`: where the verdict goes is read from `.github/acse-gate.json` (one audience per tenant), and the checkout and plan download move into the composite action |
 
 ## Tests
 
@@ -135,6 +169,8 @@ template plus a GCP bundle) and fixture plans (`fixtures/plans`, `fixtures/iac`)
 - applying the suggested change makes the gate pass;
 - switching a class to enforce in `bundle.json` changes the outcome with no workflow change;
 - salted address hashes;
+- the report goes to the tenant, audience and URL in `.github/acse-gate.json`; with no config, or an invalid one (the
+  old per-registration audience), the gate still gates and nothing is sent;
 - the reusable workflow called as a customer calls it.
 
 ## Licence
